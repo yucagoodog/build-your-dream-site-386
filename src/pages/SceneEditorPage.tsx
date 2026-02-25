@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AppShell } from "@/components/AppShell";
 import { StatusDot } from "@/components/StatusDot";
@@ -13,7 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ArrowLeft, Image as ImageIcon, Upload, Link, Clipboard, X, Loader2, Copy, RotateCcw, ChevronDown, Play, AlertCircle } from "lucide-react";
+import { ArrowLeft, Image as ImageIcon, Upload, Link, Clipboard, X, Loader2, Copy, RotateCcw, ChevronDown, Play, AlertCircle, Video, CheckCircle2, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -47,6 +47,8 @@ const SceneEditorPage = () => {
   const [promptExpansion, setPromptExpansion] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { data: scene, isLoading } = useQuery({
     queryKey: ["scene", sceneId],
@@ -522,13 +524,53 @@ const SceneEditorPage = () => {
         </TabsContent>
 
         {/* TAB 4: Results */}
-        <TabsContent value="results" className="flex-1 p-4 space-y-4">
+        <TabsContent value="results" className="flex-1 p-4 space-y-4 overflow-y-auto">
           <Button
             className="w-full"
-            disabled={!canGenerate}
-            onClick={() => toast({ title: "Generation queued", description: "Connect Atlas Cloud API key in Settings to generate." })}
+            disabled={!canGenerate || generating}
+            onClick={async () => {
+              setGenerating(true);
+              try {
+                // Save first
+                await saveScene();
+                const { data, error } = await supabase.functions.invoke("generate-video", {
+                  body: { scene_id: sceneId, action: "start" },
+                });
+                if (error) throw new Error(error.message);
+                if (data?.error) throw new Error(data.error);
+                
+                toast({ title: "Generation started!" });
+                queryClient.invalidateQueries({ queryKey: ["generations", sceneId] });
+                queryClient.invalidateQueries({ queryKey: ["scene", sceneId] });
+
+                // Start polling
+                const genId = data.generation.id;
+                const poll = setInterval(async () => {
+                  try {
+                    const { data: pollData } = await supabase.functions.invoke("generate-video", {
+                      body: { action: "poll", generation_id: genId },
+                    });
+                    if (pollData?.status === "completed" || pollData?.status === "failed") {
+                      clearInterval(poll);
+                      queryClient.invalidateQueries({ queryKey: ["generations", sceneId] });
+                      queryClient.invalidateQueries({ queryKey: ["scene", sceneId] });
+                      if (pollData.status === "completed") {
+                        toast({ title: "Video ready!", description: "Your video has been generated." });
+                      } else {
+                        toast({ title: "Generation failed", description: pollData.error, variant: "destructive" });
+                      }
+                    }
+                  } catch {}
+                }, 4000);
+                pollingRef.current = poll;
+              } catch (err: any) {
+                toast({ title: "Generation failed", description: err.message, variant: "destructive" });
+              } finally {
+                setGenerating(false);
+              }
+            }}
           >
-            <Play className="h-4 w-4" />
+            {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
             Generate This Scene
           </Button>
 
@@ -544,15 +586,82 @@ const SceneEditorPage = () => {
 
           <Separator />
 
-          <div className="flex flex-col items-center justify-center pt-8 text-center">
-            <Play className="h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-xs text-muted-foreground">No generations yet</p>
-            <p className="text-[10px] text-muted-foreground/60 mt-1">Generated videos will appear here</p>
-          </div>
+          {/* Generation history */}
+          <GenerationHistory sceneId={sceneId!} />
         </TabsContent>
       </Tabs>
     </div>
   );
 };
+
+// Generation history sub-component
+function GenerationHistory({ sceneId }: { sceneId: string }) {
+  const { user } = useAuth();
+  const { data: generations = [], isLoading } = useQuery({
+    queryKey: ["generations", sceneId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("generations")
+        .select("*")
+        .eq("scene_id", sceneId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!sceneId && !!user,
+    refetchInterval: 5000,
+  });
+
+  if (isLoading) {
+    return <div className="flex justify-center pt-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
+  }
+
+  if (generations.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center pt-8 text-center">
+        <Play className="h-10 w-10 text-muted-foreground/30 mb-3" />
+        <p className="text-xs text-muted-foreground">No generations yet</p>
+        <p className="text-[10px] text-muted-foreground/60 mt-1">Generated videos will appear here</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-medium text-muted-foreground">{generations.length} generation{generations.length !== 1 ? "s" : ""}</p>
+      {generations.map((gen) => (
+        <Card key={gen.id} className="border-border/50">
+          <CardContent className="p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {gen.status === "completed" && <CheckCircle2 className="h-4 w-4 text-status-completed" />}
+                {gen.status === "processing" && <Loader2 className="h-4 w-4 animate-spin text-status-warning" />}
+                {gen.status === "failed" && <XCircle className="h-4 w-4 text-status-failed" />}
+                <span className="text-xs font-medium capitalize">{gen.status}</span>
+              </div>
+              <span className="text-[10px] text-muted-foreground font-mono">
+                {gen.cost ? `$${gen.cost.toFixed(2)}` : ""}
+              </span>
+            </div>
+            {gen.video_url && (
+              <video
+                src={gen.video_url}
+                controls
+                className="w-full rounded-lg"
+                preload="metadata"
+              />
+            )}
+            {gen.error_message && (
+              <p className="text-xs text-status-failed">{gen.error_message}</p>
+            )}
+            <p className="text-[10px] text-muted-foreground">
+              {new Date(gen.created_at).toLocaleString()}
+            </p>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
 
 export default SceneEditorPage;
