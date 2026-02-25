@@ -381,15 +381,24 @@ const SceneEditorPage = () => {
         <TabsContent value="params" className="flex-1 p-4 space-y-4">
           <div className="space-y-1.5">
             <Label className="text-xs">Model</Label>
-            <Select value="veo-3" disabled>
+            <Select value="wan-2.6-i2v-flash" disabled>
               <SelectTrigger className="bg-surface-1 text-sm h-10">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="veo-3">Veo 3 (Atlas Cloud)</SelectItem>
+                <SelectItem value="wan-2.6-i2v-flash">Wan 2.6 Image-to-Video Flash</SelectItem>
               </SelectContent>
             </Select>
           </div>
+
+          <Button
+            onClick={() => saveScene()}
+            disabled={saving}
+            className="w-full"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Save Changes
+          </Button>
 
           <div className="space-y-4">
             <div className="space-y-1.5">
