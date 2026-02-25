@@ -45,7 +45,6 @@ const SceneEditorPage = () => {
   const [shotType, setShotType] = useState("single");
   const [promptExpansion, setPromptExpansion] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(false);
-  const [useDefaults, setUseDefaults] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const { data: scene, isLoading } = useQuery({
@@ -380,12 +379,19 @@ const SceneEditorPage = () => {
 
         {/* TAB 3: Parameters */}
         <TabsContent value="params" className="flex-1 p-4 space-y-4">
-          <div className="flex items-center justify-between">
-            <Label className="text-xs">Use Project Defaults</Label>
-            <Switch checked={useDefaults} onCheckedChange={setUseDefaults} />
+          <div className="space-y-1.5">
+            <Label className="text-xs">Model</Label>
+            <Select value="veo-3" disabled>
+              <SelectTrigger className="bg-surface-1 text-sm h-10">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="veo-3">Veo 3 (Atlas Cloud)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
-          <div className={cn("space-y-4", useDefaults && "opacity-50 pointer-events-none")}>
+          <div className="space-y-4">
             <div className="space-y-1.5">
               <Label className="text-xs">Resolution</Label>
               <Select value={resolution} onValueChange={setResolution}>
