@@ -73,6 +73,34 @@ const SettingsPage = () => {
                 <Slider value={[duration]} onValueChange={(v) => setDuration(v[0])} min={2} max={15} step={1} />
               </div>
 
+              <div className="space-y-1.5">
+                <Label className="text-xs">Shot Type</Label>
+                <Select defaultValue="medium">
+                  <SelectTrigger className="bg-surface-1 text-sm h-10">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="extreme-close-up">Extreme Close-Up</SelectItem>
+                    <SelectItem value="close-up">Close-Up</SelectItem>
+                    <SelectItem value="medium-close-up">Medium Close-Up</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="medium-wide">Medium Wide</SelectItem>
+                    <SelectItem value="wide">Wide</SelectItem>
+                    <SelectItem value="extreme-wide">Extreme Wide</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Seed</Label>
+                <Input
+                  type="number"
+                  placeholder="Random"
+                  className="bg-surface-1 text-sm font-mono"
+                />
+                <p className="text-[10px] text-muted-foreground">Leave empty for random seed each generation.</p>
+              </div>
+
               <Separator className="bg-border/50" />
 
               <div className="flex items-center justify-between">
