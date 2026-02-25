@@ -38,6 +38,7 @@ const SceneEditorPage = () => {
   const [negativePrompt, setNegativePrompt] = useState("");
   const [seedImageUrl, setSeedImageUrl] = useState("");
   const [imageUrlInput, setImageUrlInput] = useState("");
+  const [uploading, setUploading] = useState(false);
   const [resolution, setResolution] = useState("720p");
   const [duration, setDuration] = useState(5);
   const [seed, setSeed] = useState<string>("");
@@ -235,10 +236,51 @@ const SceneEditorPage = () => {
                 <p className="text-[10px] text-muted-foreground/60">Add an image to generate video from</p>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" size="sm" className="tap-target" disabled>
-                  <Upload className="h-4 w-4" /> Upload
+                <Button variant="outline" size="sm" className="tap-target" disabled={uploading} onClick={() => {
+                  const input = document.createElement("input");
+                  input.type = "file";
+                  input.accept = "image/*";
+                  input.onchange = async (e) => {
+                    const file = (e.target as HTMLInputElement).files?.[0];
+                    if (!file || !user) return;
+                    setUploading(true);
+                    const ext = file.name.split(".").pop();
+                    const path = `${user.id}/${sceneId}_${Date.now()}.${ext}`;
+                    const { error } = await supabase.storage.from("seed-images").upload(path, file);
+                    if (error) {
+                      toast({ title: "Upload failed", description: error.message, variant: "destructive" });
+                    } else {
+                      const { data: urlData } = supabase.storage.from("seed-images").getPublicUrl(path);
+                      setSeedImageUrl(urlData.publicUrl);
+                    }
+                    setUploading(false);
+                  };
+                  input.click();
+                }}>
+                  {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Upload
                 </Button>
-                <Button variant="outline" size="sm" className="tap-target" disabled>
+                <Button variant="outline" size="sm" className="tap-target" disabled={uploading} onClick={() => {
+                  const input = document.createElement("input");
+                  input.type = "file";
+                  input.accept = "image/*";
+                  input.capture = "environment";
+                  input.onchange = async (e) => {
+                    const file = (e.target as HTMLInputElement).files?.[0];
+                    if (!file || !user) return;
+                    setUploading(true);
+                    const ext = file.name.split(".").pop();
+                    const path = `${user.id}/${sceneId}_cam_${Date.now()}.${ext}`;
+                    const { error } = await supabase.storage.from("seed-images").upload(path, file);
+                    if (error) {
+                      toast({ title: "Upload failed", description: error.message, variant: "destructive" });
+                    } else {
+                      const { data: urlData } = supabase.storage.from("seed-images").getPublicUrl(path);
+                      setSeedImageUrl(urlData.publicUrl);
+                    }
+                    setUploading(false);
+                  };
+                  input.click();
+                }}>
                   <ImageIcon className="h-4 w-4" /> Camera
                 </Button>
                 <Button variant="outline" size="sm" className="tap-target" onClick={() => {
