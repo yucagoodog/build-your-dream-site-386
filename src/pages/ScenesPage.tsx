@@ -9,6 +9,9 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { Clapperboard, Loader2, Image, ArrowLeft, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -22,6 +25,10 @@ const ScenesPage = () => {
   const queryClient = useQueryClient();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [newDirection, setNewDirection] = useState("");
+  const [newResolution, setNewResolution] = useState("720p");
+  const [newDuration, setNewDuration] = useState(5);
+  const [newShotType, setNewShotType] = useState("single");
+  const [newAudio, setNewAudio] = useState(false);
 
   const { data: project } = useQuery({
     queryKey: ["project", projectId],
@@ -60,6 +67,10 @@ const ScenesPage = () => {
         scene_number: nextNumber,
         sort_order: nextNumber,
         direction: newDirection.trim(),
+        resolution: newResolution,
+        duration: newDuration,
+        shot_type: newShotType,
+        audio_enabled: newAudio,
       });
       if (error) throw error;
     },
@@ -67,6 +78,10 @@ const ScenesPage = () => {
       queryClient.invalidateQueries({ queryKey: ["scenes", projectId] });
       setSheetOpen(false);
       setNewDirection("");
+      setNewResolution("720p");
+      setNewDuration(5);
+      setNewShotType("single");
+      setNewAudio(false);
       toast({ title: "Scene added" });
     },
     onError: (err: Error) => {
@@ -196,6 +211,46 @@ const ScenesPage = () => {
                 className="bg-surface-1 min-h-[80px]"
               />
             </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Resolution</Label>
+              <Select value={newResolution} onValueChange={setNewResolution}>
+                <SelectTrigger className="bg-surface-1 text-sm h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="720p">720p</SelectItem>
+                  <SelectItem value="1080p">1080p</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Duration</Label>
+                <span className="text-xs text-muted-foreground font-mono">{newDuration}s</span>
+              </div>
+              <Slider value={[newDuration]} onValueChange={(v) => setNewDuration(v[0])} min={2} max={15} step={1} />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Shot Type</Label>
+              <Select value={newShotType} onValueChange={setNewShotType}>
+                <SelectTrigger className="bg-surface-1 text-sm h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="single">Single</SelectItem>
+                  <SelectItem value="multi">Multi</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">Audio</Label>
+              <Switch checked={newAudio} onCheckedChange={setNewAudio} />
+            </div>
+
             <Button
               onClick={() => createScene.mutate()}
               disabled={createScene.isPending}
