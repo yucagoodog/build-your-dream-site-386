@@ -11,6 +11,7 @@ import ReviewPage from "./pages/ReviewPage";
 import SettingsPage from "./pages/SettingsPage";
 import AuthPage from "./pages/AuthPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import SceneEditorPage from "./pages/SceneEditorPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -42,6 +43,7 @@ const AppRoutes = () => (
     <Route path="/" element={<ProtectedRoute><ProjectsPage /></ProtectedRoute>} />
     <Route path="/scenes" element={<ProtectedRoute><ScenesPage /></ProtectedRoute>} />
     <Route path="/scenes/:projectId" element={<ProtectedRoute><ScenesPage /></ProtectedRoute>} />
+    <Route path="/scene/:sceneId" element={<ProtectedRoute><SceneEditorPage /></ProtectedRoute>} />
     <Route path="/queue" element={<ProtectedRoute><QueuePage /></ProtectedRoute>} />
     <Route path="/review" element={<ProtectedRoute><ReviewPage /></ProtectedRoute>} />
     <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
