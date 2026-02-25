@@ -75,20 +75,16 @@ const SettingsPage = () => {
 
               <div className="space-y-1.5">
                 <Label className="text-xs">Shot Type</Label>
-                <Select defaultValue="medium">
+                <Select defaultValue="single">
                   <SelectTrigger className="bg-surface-1 text-sm h-10">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="extreme-close-up">Extreme Close-Up</SelectItem>
-                    <SelectItem value="close-up">Close-Up</SelectItem>
-                    <SelectItem value="medium-close-up">Medium Close-Up</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="medium-wide">Medium Wide</SelectItem>
-                    <SelectItem value="wide">Wide</SelectItem>
-                    <SelectItem value="extreme-wide">Extreme Wide</SelectItem>
+                    <SelectItem value="single">Single</SelectItem>
+                    <SelectItem value="multi">Multi</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-[10px] text-muted-foreground">Single for one subject, Multi for multiple subjects or scene changes.</p>
               </div>
 
               <div className="space-y-1.5">
