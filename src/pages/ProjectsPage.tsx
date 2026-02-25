@@ -1,21 +1,108 @@
+import { useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { FAB } from "@/components/FAB";
 import { StatusDot } from "@/components/StatusDot";
 import { Card, CardContent } from "@/components/ui/card";
-import { Clapperboard, DollarSign } from "lucide-react";
-
-// Mock data for now — will be replaced with Supabase queries
-const mockProjects = [
-  { id: "1", name: "Product Launch Video", status: "draft" as const, sceneCount: 5, cost: 0, updatedAt: "2 hours ago" },
-  { id: "2", name: "Brand Story Series", status: "processing" as const, sceneCount: 12, cost: 4.80, updatedAt: "1 day ago" },
-  { id: "3", name: "Tutorial Walkthrough", status: "completed" as const, sceneCount: 8, cost: 3.20, updatedAt: "3 days ago" },
-];
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Clapperboard, DollarSign, Loader2, Trash2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
+import { formatDistanceToNow } from "date-fns";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const ProjectsPage = () => {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [script, setScript] = useState("");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const { data: projects = [], isLoading } = useQuery({
+    queryKey: ["projects"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("projects")
+        .select("*")
+        .order("updated_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("projects").insert({
+        user_id: user!.id,
+        name: name.trim(),
+        description: description.trim(),
+        script: script.trim(),
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      setSheetOpen(false);
+      setName("");
+      setDescription("");
+      setScript("");
+      toast({ title: "Project created" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("projects").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      setDeleteId(null);
+      toast({ title: "Project deleted" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const statusMap: Record<string, "draft" | "queued" | "processing" | "completed" | "failed"> = {
+    draft: "draft",
+    queued: "queued",
+    processing: "processing",
+    completed: "completed",
+    failed: "failed",
+  };
+
   return (
     <AppShell title="Projects">
       <div className="p-4 space-y-3">
-        {mockProjects.length === 0 ? (
+        {isLoading ? (
+          <div className="flex items-center justify-center pt-32">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : projects.length === 0 ? (
           <div className="flex flex-col items-center justify-center pt-32 text-center">
             <Clapperboard className="h-12 w-12 text-muted-foreground/50 mb-4" />
             <p className="text-muted-foreground text-sm">No projects yet</p>
@@ -23,34 +110,110 @@ const ProjectsPage = () => {
           </div>
         ) : (
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {mockProjects.map((project) => (
+            {projects.map((project) => (
               <Card
                 key={project.id}
                 className="tap-target cursor-pointer border-border/50 bg-card transition-colors hover:border-primary/30 active:bg-surface-1"
+                onClick={() => navigate(`/scenes/${project.id}`)}
               >
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-2">
                     <h3 className="font-semibold text-sm leading-tight pr-2">{project.name}</h3>
-                    <StatusDot status={project.status} />
+                    <div className="flex items-center gap-2 shrink-0">
+                      <StatusDot status={statusMap[project.status] || "draft"} />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteId(project.id);
+                        }}
+                        className="tap-target flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Clapperboard className="h-3 w-3" />
-                      {project.sceneCount} scenes
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <DollarSign className="h-3 w-3" />
-                      ${project.cost.toFixed(2)}
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground/60 mt-2">{project.updatedAt}</p>
+                  {project.description && (
+                    <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{project.description}</p>
+                  )}
+                  <p className="text-[10px] text-muted-foreground/60">
+                    {formatDistanceToNow(new Date(project.updated_at), { addSuffix: true })}
+                  </p>
                 </CardContent>
               </Card>
             ))}
           </div>
         )}
       </div>
-      <FAB onClick={() => {}} label="New Project" />
+
+      <FAB onClick={() => setSheetOpen(true)} label="New Project" />
+
+      {/* New Project Bottom Sheet */}
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent side="bottom" className="rounded-t-2xl max-h-[85vh] overflow-y-auto">
+          <SheetHeader className="text-left mb-4">
+            <SheetTitle>New Project</SheetTitle>
+            <SheetDescription>Create a new video production project.</SheetDescription>
+          </SheetHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Project Name</Label>
+              <Input
+                placeholder="My Video Project"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="bg-surface-1"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Description</Label>
+              <Input
+                placeholder="Brief description (optional)"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="bg-surface-1"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Script</Label>
+              <Textarea
+                placeholder="Paste your full script here. You can break it into scenes later."
+                value={script}
+                onChange={(e) => setScript(e.target.value)}
+                className="bg-surface-1 min-h-[120px]"
+              />
+            </div>
+            <Button
+              onClick={() => createMutation.mutate()}
+              disabled={!name.trim() || createMutation.isPending}
+              className="w-full"
+            >
+              {createMutation.isPending && <Loader2 className="animate-spin" />}
+              Create Project
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Project?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this project and all its scenes, characters, and generations.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteId && deleteMutation.mutate(deleteId)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppShell>
   );
 };
