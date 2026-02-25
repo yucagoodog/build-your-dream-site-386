@@ -13,7 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ArrowLeft, Image as ImageIcon, Upload, Link, Clipboard, X, Loader2, Copy, RotateCcw, ChevronDown, Play, AlertCircle, Video, CheckCircle2, XCircle, Sparkles } from "lucide-react";
+import { ArrowLeft, Image as ImageIcon, Upload, Link, Clipboard, X, Loader2, Copy, RotateCcw, ChevronDown, Play, AlertCircle, Video, CheckCircle2, XCircle, Sparkles, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -762,12 +762,32 @@ function GenerationHistory({ sceneId }: { sceneId: string }) {
               </span>
             </div>
             {gen.video_url && (
-              <video
-                src={gen.video_url}
-                controls
-                className="w-full rounded-lg"
-                preload="metadata"
-              />
+              <div className="space-y-2">
+                <video
+                  src={gen.video_url}
+                  controls
+                  className="w-full rounded-lg"
+                  preload="metadata"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-2"
+                  onClick={() => {
+                    const link = document.createElement("a");
+                    link.href = gen.video_url!;
+                    link.download = `scene-${sceneId.slice(0, 6)}-gen-${gen.id.slice(0, 6)}.mp4`;
+                    link.target = "_blank";
+                    link.rel = "noopener noreferrer";
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                  }}
+                >
+                  <Download className="h-4 w-4" />
+                  Download Result
+                </Button>
+              </div>
             )}
             {gen.error_message && (
               <p className="text-xs text-status-failed">{gen.error_message}</p>
