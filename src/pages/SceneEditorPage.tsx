@@ -13,7 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ArrowLeft, Image as ImageIcon, Upload, Link, Clipboard, X, Loader2, Copy, RotateCcw, ChevronDown, Play, AlertCircle, Video, CheckCircle2, XCircle } from "lucide-react";
+import { ArrowLeft, Image as ImageIcon, Upload, Link, Clipboard, X, Loader2, Copy, RotateCcw, ChevronDown, Play, AlertCircle, Video, CheckCircle2, XCircle, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -419,7 +419,7 @@ const SceneEditorPage = () => {
           )}
 
           {/* i2v Formula block pickers */}
-          <p className="text-[10px] text-muted-foreground/60 px-1">Formula: Shot Setup → Camera → Motion → Style</p>
+          <p className="text-[10px] text-muted-foreground/60 px-1">Formula: Shot Setup → Camera → Motion → Style → Super Prompt</p>
           {[
             { key: "shot_setup", label: "① Shot Setup" },
             { key: "camera", label: "② Camera Move" },
@@ -454,6 +454,60 @@ const SceneEditorPage = () => {
               </CollapsibleContent>
             </Collapsible>
           ))}
+
+          {/* ⑥ Super Prompts — Cinematic Quality Boosters */}
+          {(blocksByCategory["super_prompt"] || []).length > 0 && (
+            <Collapsible>
+              <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg bg-accent/30 px-3 py-2.5 text-xs font-medium">
+                <span className="flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  ⑥ Super Prompts
+                </span>
+                <div className="flex items-center gap-1.5">
+                  {(() => {
+                    const superSelected = (blocksByCategory["super_prompt"] || []).filter(b => selectedBlocks.has(b.id)).length;
+                    return superSelected > 0 ? (
+                      <span className={cn("text-[10px] font-mono", superSelected > 4 ? "text-status-warning" : "text-status-completed")}>
+                        {superSelected}/4
+                      </span>
+                    ) : null;
+                  })()}
+                  <span className="text-[10px] text-muted-foreground">{(blocksByCategory["super_prompt"] || []).length}</span>
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                </div>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-2 space-y-2">
+                <p className="text-[10px] text-muted-foreground/70 px-1">
+                  Add ONE aesthetic signature sentence. Pick 3–4 terms max — more compete and cancel.
+                </p>
+                {(() => {
+                  const superSelected = (blocksByCategory["super_prompt"] || []).filter(b => selectedBlocks.has(b.id)).length;
+                  return superSelected > 4 ? (
+                    <div className="flex items-center gap-1.5 rounded-md bg-status-warning/10 px-2.5 py-1.5 text-[11px] text-status-warning">
+                      <AlertCircle className="h-3.5 w-3.5" />
+                      Too many super prompts selected — terms will compete and cancel each other. Keep to 3–4 max.
+                    </div>
+                  ) : null;
+                })()}
+                <div className="flex flex-wrap gap-1.5">
+                  {(blocksByCategory["super_prompt"] || []).map((block) => (
+                    <button
+                      key={block.id}
+                      onClick={() => toggleBlock(block.id, block.value)}
+                      className={cn(
+                        "rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors",
+                        selectedBlocks.has(block.id)
+                          ? "bg-accent text-accent-foreground ring-1 ring-accent-foreground/20"
+                          : "bg-surface-2 text-muted-foreground hover:bg-surface-3"
+                      )}
+                    >
+                      {block.label}
+                    </button>
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
 
           <Separator />
 
