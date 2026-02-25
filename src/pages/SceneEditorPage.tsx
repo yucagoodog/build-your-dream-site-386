@@ -363,12 +363,11 @@ const SceneEditorPage = () => {
 
           {/* Block pickers */}
           {[
-            { key: "camera_movement", label: "Camera Movement" },
-            { key: "realism", label: "Motion & Realism" },
-            { key: "lighting", label: "Lighting & Style" },
-            { key: "shot_type", label: "Shot Framing" },
-            { key: "camera_angle", label: "Camera Angle" },
-            { key: "identity", label: "Identity" },
+            { key: "quality", label: "Quality Anchors" },
+            { key: "subject", label: "Subject / Identity" },
+            { key: "action", label: "Action / Motion" },
+            { key: "camera", label: "Camera Movement" },
+            { key: "lighting", label: "Lighting" },
           ].map(({ key, label }) => (
             <Collapsible key={key}>
               <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg bg-surface-1 px-3 py-2.5 text-xs font-medium">
@@ -408,7 +407,7 @@ const SceneEditorPage = () => {
               placeholder="What to avoid in the generation..."
             />
             <div className="flex flex-wrap gap-1.5">
-              {(blocksByCategory["negative_preset"] || []).map((block) => (
+              {(blocksByCategory["negative"] || []).map((block) => (
                 <button
                   key={block.id}
                   onClick={() => applyNegativePreset(block.value)}
