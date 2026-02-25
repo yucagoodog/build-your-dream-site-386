@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,8 @@ import { Separator } from "@/components/ui/separator";
 import { Lock, Zap, BookOpen } from "lucide-react";
 
 const SettingsPage = () => {
+  const [duration, setDuration] = useState(5);
+
   return (
     <AppShell title="Settings">
       <div className="p-4 space-y-4 max-w-lg mx-auto">
@@ -65,9 +68,9 @@ const SettingsPage = () => {
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs">Duration</Label>
-                  <span className="text-xs text-muted-foreground font-mono">5s</span>
+                  <span className="text-xs text-muted-foreground font-mono">{duration}s</span>
                 </div>
-                <Slider defaultValue={[5]} min={2} max={15} step={1} />
+                <Slider value={[duration]} onValueChange={(v) => setDuration(v[0])} min={2} max={15} step={1} />
               </div>
 
               <Separator className="bg-border/50" />
