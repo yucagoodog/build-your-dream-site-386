@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { Clapperboard, Loader2, Image, ArrowLeft, Trash2 } from "lucide-react";
+import { Clapperboard, Loader2, Image, ArrowLeft, Trash2, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -100,6 +100,40 @@ const ScenesPage = () => {
     },
   });
 
+  const duplicateScene = useMutation({
+    mutationFn: async (sourceId: string) => {
+      const source = scenes.find((s) => s.id === sourceId);
+      if (!source) throw new Error("Scene not found");
+      const nextNumber = scenes.length + 1;
+      const { error } = await supabase.from("scenes").insert({
+        user_id: user!.id,
+        project_id: projectId!,
+        scene_number: nextNumber,
+        sort_order: nextNumber,
+        direction: source.direction,
+        prompt: source.prompt,
+        negative_prompt: source.negative_prompt,
+        resolution: source.resolution,
+        duration: source.duration,
+        shot_type: source.shot_type,
+        audio_enabled: source.audio_enabled,
+        seed_image_url: source.seed_image_url,
+        seed: source.seed,
+        use_random_seed: source.use_random_seed,
+        prompt_expansion: source.prompt_expansion,
+        character_ids: source.character_ids,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["scenes", projectId] });
+      toast({ title: "Scene duplicated" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
   if (!projectId) {
     return (
       <AppShell title="Scenes">
@@ -159,6 +193,15 @@ const ScenesPage = () => {
                         <span className="text-sm font-semibold">Scene {scene.scene_number}</span>
                         <div className="flex items-center gap-2">
                           <StatusDot status={(scene.status as any) || "draft"} />
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              duplicateScene.mutate(scene.id);
+                            }}
+                            className="tap-target flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </button>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
