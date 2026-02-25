@@ -1,16 +1,86 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { AppShell } from "@/components/AppShell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Lock, Zap, BookOpen } from "lucide-react";
+import { Lock, Zap, BookOpen, Loader2, Save, LogOut } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/hooks/use-toast";
 
 const SettingsPage = () => {
+  const { user, signOut } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const [apiKey, setApiKey] = useState("");
+  const [model, setModel] = useState("wan26-i2v-flash");
+  const [resolution, setResolution] = useState("720p");
   const [duration, setDuration] = useState(5);
+  const [shotType, setShotType] = useState("single");
+  const [seed, setSeed] = useState("");
+  const [promptExpansion, setPromptExpansion] = useState(true);
+  const [audio, setAudio] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("user_settings")
+      .select("*")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          setApiKey(data.atlas_api_key || "");
+          setModel(data.default_model);
+          setResolution(data.default_resolution);
+          setDuration(data.default_duration);
+          setShotType(data.default_shot_type);
+          setPromptExpansion(data.default_prompt_expansion);
+          setAudio(data.default_audio);
+        }
+        setLoading(false);
+      });
+  }, [user]);
+
+  const handleSave = useCallback(async () => {
+    if (!user) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from("user_settings")
+      .update({
+        atlas_api_key: apiKey,
+        default_model: model,
+        default_resolution: resolution,
+        default_duration: duration,
+        default_shot_type: shotType,
+        default_prompt_expansion: promptExpansion,
+        default_audio: audio,
+      })
+      .eq("user_id", user.id);
+
+    if (error) {
+      toast({ title: "Failed to save", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Settings saved" });
+    }
+    setSaving(false);
+  }, [user, apiKey, model, resolution, duration, shotType, promptExpansion, audio]);
+
+  if (loading) {
+    return (
+      <AppShell title="Settings">
+        <div className="flex items-center justify-center pt-32">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell title="Settings">
@@ -25,6 +95,8 @@ const SettingsPage = () => {
             <Input
               type="password"
               placeholder="Enter your Atlas Cloud API key"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
               className="bg-surface-1 text-sm"
             />
             <p className="text-[10px] text-muted-foreground">Required for video generation. Stored securely.</p>
@@ -42,7 +114,7 @@ const SettingsPage = () => {
             <div className="space-y-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Model</Label>
-                <Select defaultValue="wan26-i2v-flash">
+                <Select value={model} onValueChange={setModel}>
                   <SelectTrigger className="bg-surface-1 text-sm h-10">
                     <SelectValue />
                   </SelectTrigger>
@@ -54,7 +126,7 @@ const SettingsPage = () => {
 
               <div className="space-y-1.5">
                 <Label className="text-xs">Resolution</Label>
-                <Select defaultValue="720p">
+                <Select value={resolution} onValueChange={setResolution}>
                   <SelectTrigger className="bg-surface-1 text-sm h-10">
                     <SelectValue />
                   </SelectTrigger>
@@ -75,7 +147,7 @@ const SettingsPage = () => {
 
               <div className="space-y-1.5">
                 <Label className="text-xs">Shot Type</Label>
-                <Select defaultValue="single">
+                <Select value={shotType} onValueChange={setShotType}>
                   <SelectTrigger className="bg-surface-1 text-sm h-10">
                     <SelectValue />
                   </SelectTrigger>
@@ -92,6 +164,8 @@ const SettingsPage = () => {
                 <Input
                   type="number"
                   placeholder="Random"
+                  value={seed}
+                  onChange={(e) => setSeed(e.target.value)}
                   className="bg-surface-1 text-sm font-mono"
                 />
                 <p className="text-[10px] text-muted-foreground">Leave empty for random seed each generation.</p>
@@ -101,16 +175,22 @@ const SettingsPage = () => {
 
               <div className="flex items-center justify-between">
                 <Label className="text-xs">Prompt Expansion</Label>
-                <Switch defaultChecked />
+                <Switch checked={promptExpansion} onCheckedChange={setPromptExpansion} />
               </div>
 
               <div className="flex items-center justify-between">
                 <Label className="text-xs">Audio</Label>
-                <Switch />
+                <Switch checked={audio} onCheckedChange={setAudio} />
               </div>
             </div>
           </CardContent>
         </Card>
+
+        {/* Save Button */}
+        <Button onClick={handleSave} disabled={saving} className="w-full">
+          {saving ? <Loader2 className="animate-spin" /> : <Save className="h-4 w-4" />}
+          Save Changes
+        </Button>
 
         {/* Prompt Library */}
         <Card className="border-border/50">
@@ -138,6 +218,12 @@ const SettingsPage = () => {
             <span className="inline-block rounded-md bg-surface-1 px-2 py-1 text-[10px] text-muted-foreground">Phase 2</span>
           </CardContent>
         </Card>
+
+        {/* Sign Out */}
+        <Button variant="outline" onClick={signOut} className="w-full">
+          <LogOut className="h-4 w-4" />
+          Sign Out
+        </Button>
       </div>
     </AppShell>
   );
