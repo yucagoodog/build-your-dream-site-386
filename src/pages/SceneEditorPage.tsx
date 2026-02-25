@@ -141,21 +141,47 @@ const SceneEditorPage = () => {
       const next = new Set(prev);
       if (next.has(blockId)) {
         next.delete(blockId);
-        setPrompt((p) => p.replace(`, ${value}`, "").replace(`${value}, `, "").replace(value, "").trim());
+        // Remove sentence from prompt (with trailing space)
+        setPrompt((p) => p.replace(` ${value}`, "").replace(`${value} `, "").replace(value, "").trim());
       } else {
         next.add(blockId);
-        setPrompt((p) => (p ? `${p}, ${value}` : value));
+        // Append as a new sentence (space-separated)
+        setPrompt((p) => (p ? `${p} ${value}` : value));
       }
       return next;
     });
   };
 
-  const applyNegativePreset = (value: string) => {
-    setNegativePrompt(value);
+  const toggleNegativeBlock = (blockId: string, value: string) => {
+    setSelectedBlocks((prev) => {
+      const next = new Set(prev);
+      if (next.has(blockId)) {
+        next.delete(blockId);
+        setNegativePrompt((p) => p.replace(`, ${value}`, "").replace(`${value}, `, "").replace(value, "").trim());
+      } else {
+        next.add(blockId);
+        setNegativePrompt((p) => (p ? `${p}, ${value}` : value));
+      }
+      return next;
+    });
+  };
+
+  const applyTemplate = (templateValue: string) => {
+    try {
+      const t = JSON.parse(templateValue);
+      setPrompt(t.positive || "");
+      setNegativePrompt(t.negative || "");
+      setSelectedBlocks(new Set());
+      toast({ title: "Template applied" });
+    } catch {
+      toast({ title: "Invalid template", variant: "destructive" });
+    }
   };
 
   const charCount = prompt.length;
+  const wordCount = prompt.trim() ? prompt.trim().split(/\s+/).length : 0;
   const charColor = charCount > 2000 ? "text-status-failed" : charCount > 1800 ? "text-status-warning" : "text-status-completed";
+  const wordColor = wordCount > 120 ? "text-status-warning" : wordCount >= 80 ? "text-status-completed" : "text-muted-foreground";
 
   const cost = estimateCost(resolution, duration);
   const canGenerate = !!seedImageUrl && prompt.length > 0;
@@ -343,7 +369,10 @@ const SceneEditorPage = () => {
           <div className="space-y-1.5 sticky top-0 z-10 bg-background pb-2">
             <div className="flex items-center justify-between">
               <Label className="text-xs">Assembled Prompt</Label>
-              <span className={cn("text-xs font-mono", charColor)}>{charCount}/2000</span>
+              <div className="flex items-center gap-2">
+                <span className={cn("text-xs font-mono", wordColor)}>{wordCount}w</span>
+                <span className={cn("text-xs font-mono", charColor)}>{charCount}/2000</span>
+              </div>
             </div>
             <Textarea
               value={prompt}
@@ -361,18 +390,49 @@ const SceneEditorPage = () => {
             </div>
           </div>
 
-          {/* Block pickers */}
+          {/* Templates */}
+          {(blocksByCategory["template"] || []).length > 0 && (
+            <Collapsible>
+              <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg bg-primary/10 px-3 py-2.5 text-xs font-medium text-primary">
+                ⚡ Quick Templates
+                <ChevronDown className="h-3.5 w-3.5" />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-2">
+                <div className="flex flex-wrap gap-1.5">
+                  {(blocksByCategory["template"] || []).map((block) => {
+                    let useFor = "";
+                    try { useFor = JSON.parse(block.value).use_for; } catch {}
+                    return (
+                      <button
+                        key={block.id}
+                        onClick={() => applyTemplate(block.value)}
+                        className="rounded-md bg-primary/10 px-2.5 py-1.5 text-[11px] font-medium text-primary hover:bg-primary/20 transition-colors"
+                        title={useFor}
+                      >
+                        {block.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+
+          {/* i2v Formula block pickers */}
+          <p className="text-[10px] text-muted-foreground/60 px-1">Formula: Shot Setup → Camera → Motion → Style</p>
           {[
-            { key: "quality", label: "Quality Anchors" },
-            { key: "subject", label: "Subject / Identity" },
-            { key: "action", label: "Action / Motion" },
-            { key: "camera", label: "Camera Movement" },
-            { key: "lighting", label: "Lighting" },
+            { key: "shot_setup", label: "① Shot Setup" },
+            { key: "camera", label: "② Camera Move" },
+            { key: "motion", label: "③ Subject Motion" },
+            { key: "style", label: "④ Style & Mood" },
           ].map(({ key, label }) => (
             <Collapsible key={key}>
               <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg bg-surface-1 px-3 py-2.5 text-xs font-medium">
                 {label}
-                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-muted-foreground">{(blocksByCategory[key] || []).length}</span>
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                </div>
               </CollapsibleTrigger>
               <CollapsibleContent className="pt-2">
                 <div className="flex flex-wrap gap-1.5">
@@ -399,7 +459,7 @@ const SceneEditorPage = () => {
 
           {/* Negative prompt */}
           <div className="space-y-2">
-            <Label className="text-xs">Negative Prompt</Label>
+            <Label className="text-xs">⑤ Negative Prompt</Label>
             <Textarea
               value={negativePrompt}
               onChange={(e) => setNegativePrompt(e.target.value)}
@@ -410,8 +470,13 @@ const SceneEditorPage = () => {
               {(blocksByCategory["negative"] || []).map((block) => (
                 <button
                   key={block.id}
-                  onClick={() => applyNegativePreset(block.value)}
-                  className="rounded-md bg-surface-2 px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:bg-surface-3 transition-colors"
+                  onClick={() => toggleNegativeBlock(block.id, block.value)}
+                  className={cn(
+                    "rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors",
+                    selectedBlocks.has(block.id)
+                      ? "bg-destructive/20 text-destructive"
+                      : "bg-surface-2 text-muted-foreground hover:bg-surface-3"
+                  )}
                 >
                   {block.label}
                 </button>
