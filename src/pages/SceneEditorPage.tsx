@@ -651,10 +651,20 @@ const SceneEditorPage = () => {
               try {
                 // Save first
                 await saveScene();
+                console.log("[Generate] Calling generate-video with scene_id:", sceneId);
                 const { data, error } = await supabase.functions.invoke("generate-video", {
                   body: { scene_id: sceneId, action: "start" },
                 });
-                if (error) throw new Error(error.message);
+                console.log("[Generate] Response:", { data, error });
+                if (error) {
+                  // Try to extract message from FunctionsHttpError
+                  let msg = error.message;
+                  try {
+                    const ctx = await (error as any).context?.json?.();
+                    if (ctx?.error) msg = ctx.error;
+                  } catch {}
+                  throw new Error(msg || "Edge function error");
+                }
                 if (data?.error) throw new Error(data.error);
                 
                 toast({ title: "Generation started!" });
@@ -678,10 +688,13 @@ const SceneEditorPage = () => {
                         toast({ title: "Generation failed", description: pollData.error, variant: "destructive" });
                       }
                     }
-                  } catch {}
+                  } catch (pollErr) {
+                    console.error("[Generate] Poll error:", pollErr);
+                  }
                 }, 4000);
                 pollingRef.current = poll;
               } catch (err: any) {
+                console.error("[Generate] Error:", err);
                 toast({ title: "Generation failed", description: err.message, variant: "destructive" });
               } finally {
                 setGenerating(false);
