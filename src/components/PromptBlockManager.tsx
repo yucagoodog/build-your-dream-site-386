@@ -1,59 +1,150 @@
 import { useState, useEffect, useCallback } from "react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
-  ArrowLeft, ChevronDown, Eye, EyeOff,
-  Loader2, Save, ArrowUp, ArrowDown,
+  ArrowLeft, ChevronDown, Eye, EyeOff, GripVertical,
+  Loader2, Save,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import {
+  DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor,
+  useSensor, useSensors, DragEndEvent, DragOverlay, DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove, SortableContext, sortableKeyboardCoordinates,
+  useSortable, verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
 
 const ALL_CATEGORY_LABELS: Record<string, string> = {
-  img_realism: "Realism",
-  img_identity: "Identity Preserve",
-  img_face_swap: "Face Swap",
-  img_lighting: "Lighting",
-  img_scene: "Scene Edits",
-  img_style: "Style & Film",
-  img_enhance: "Enhancement",
-  img_skin: "Skin Quality",
-  img_hair: "Hair Quality",
-  img_eyes: "Eye Quality",
-  img_fabric: "Fabric & Clothing",
-  img_camera: "Camera Presets",
-  img_optics: "Optical Physics",
-  img_lighting_q: "Lighting Quality",
-  img_environment: "Environment & Scene",
-  img_product: "Product & Object",
-  img_post: "Post-Processing",
-  img_negative: "Image Negatives",
-  shot_type: "Shot Setup",
-  camera: "Camera Movement",
-  motion: "Subject Motion",
-  style: "Style & Mood",
-  identity: "Identity Preserve",
-  multi_char: "Multi-Character",
-  multi_shot: "Multi-Shot",
-  super_prompt: "Super Prompt",
-  negative: "Video Negatives",
+  img_realism: "Realism", img_identity: "Identity Preserve", img_face_swap: "Face Swap",
+  img_lighting: "Lighting", img_scene: "Scene Edits", img_style: "Style & Film",
+  img_enhance: "Enhancement", img_skin: "Skin Quality", img_hair: "Hair Quality",
+  img_eyes: "Eye Quality", img_fabric: "Fabric & Clothing", img_camera: "Camera Presets",
+  img_optics: "Optical Physics", img_lighting_q: "Lighting Quality",
+  img_environment: "Environment & Scene", img_product: "Product & Object",
+  img_post: "Post-Processing", img_negative: "Image Negatives",
+  shot_type: "Shot Setup", camera: "Camera Movement", motion: "Subject Motion",
+  style: "Style & Mood", identity: "Identity Preserve", multi_char: "Multi-Character",
+  multi_shot: "Multi-Shot", super_prompt: "Super Prompt", negative: "Video Negatives",
   template: "Templates",
 };
 
-interface LocalBlockPref {
-  hidden: boolean;
-  custom_sort_order: number | null;
+interface LocalBlockPref { hidden: boolean; custom_sort_order: number | null; }
+interface LocalCatPref { hidden: boolean; custom_sort_order: number; }
+
+/* ── Sortable Category Row ── */
+function SortableCategoryRow({
+  category, catBlocks, catIdx, totalCats, isCatHidden, isBlockHidden,
+  toggleCatHidden, toggleBlockHidden, moveBlock,
+}: {
+  category: string; catBlocks: any[]; catIdx: number; totalCats: number;
+  isCatHidden: boolean; isBlockHidden: (id: string) => boolean;
+  toggleCatHidden: (cat: string) => void;
+  toggleBlockHidden: (id: string) => void;
+  moveBlock: (cat: string, blockId: string, fromIdx: number, toIdx: number) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: `cat-${category}` });
+  const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 50 : undefined };
+  const hiddenInCat = catBlocks.filter((b: any) => isBlockHidden(b.id)).length;
+
+  return (
+    <div ref={setNodeRef} style={style} className={cn("rounded-lg bg-surface-1", isCatHidden && "opacity-40", isDragging && "shadow-lg ring-2 ring-primary/30")}>
+      <div className="flex items-center gap-1.5 px-2 py-1.5">
+        {/* Drag handle */}
+        <button {...attributes} {...listeners} className="h-8 w-6 flex items-center justify-center cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none">
+          <GripVertical className="h-4 w-4" />
+        </button>
+
+        <Collapsible className="flex-1">
+          <div className="flex items-center justify-between">
+            <CollapsibleTrigger className="flex items-center gap-2 flex-1 py-1">
+              <span className="text-xs font-medium">{ALL_CATEGORY_LABELS[category] || category}</span>
+              <Badge variant="secondary" className="text-[10px] h-5">{catBlocks.length}</Badge>
+              {hiddenInCat > 0 && <Badge variant="outline" className="text-[10px] h-5 text-muted-foreground">{hiddenInCat} hidden</Badge>}
+              <ChevronDown className="h-3 w-3 text-muted-foreground" />
+            </CollapsibleTrigger>
+            <button onClick={() => toggleCatHidden(category)}
+              className={cn("h-7 w-7 flex items-center justify-center rounded-md transition-colors shrink-0",
+                isCatHidden ? "text-muted-foreground hover:text-foreground" : "text-foreground hover:text-muted-foreground")}>
+              {isCatHidden ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            </button>
+          </div>
+          <CollapsibleContent>
+            <BlockList blocks={catBlocks} category={category} isBlockHidden={isBlockHidden} toggleBlockHidden={toggleBlockHidden} moveBlock={moveBlock} />
+          </CollapsibleContent>
+        </Collapsible>
+      </div>
+    </div>
+  );
 }
 
-interface LocalCatPref {
-  hidden: boolean;
-  custom_sort_order: number;
+/* ── Sortable Block Row ── */
+function SortableBlockRow({ block, isHidden, toggleHidden }: { block: any; isHidden: boolean; toggleHidden: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
+  const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 50 : undefined };
+
+  return (
+    <div ref={setNodeRef} style={style}
+      className={cn("flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors",
+        isHidden ? "bg-muted/30 opacity-50" : "bg-background hover:bg-surface-1",
+        isDragging && "shadow-md ring-2 ring-primary/30")}>
+      <button {...attributes} {...listeners} className="h-6 w-5 flex items-center justify-center cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none">
+        <GripVertical className="h-3.5 w-3.5" />
+      </button>
+      <div className="flex-1 min-w-0">
+        <p className="text-[11px] font-medium truncate">{block.label}</p>
+        <p className="text-[10px] text-muted-foreground truncate">{block.value}</p>
+      </div>
+      <button onClick={toggleHidden}
+        className={cn("h-6 w-6 flex items-center justify-center rounded-md transition-colors shrink-0",
+          isHidden ? "text-muted-foreground hover:text-foreground" : "text-foreground hover:text-muted-foreground")}>
+        {isHidden ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+      </button>
+    </div>
+  );
 }
 
+/* ── Block list with its own DnD context ── */
+function BlockList({ blocks, category, isBlockHidden, toggleBlockHidden, moveBlock }: {
+  blocks: any[]; category: string; isBlockHidden: (id: string) => boolean;
+  toggleBlockHidden: (id: string) => void;
+  moveBlock: (cat: string, blockId: string, fromIdx: number, toIdx: number) => void;
+}) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIdx = blocks.findIndex((b: any) => b.id === active.id);
+    const newIdx = blocks.findIndex((b: any) => b.id === over.id);
+    if (oldIdx !== -1 && newIdx !== -1) moveBlock(category, active.id as string, oldIdx, newIdx);
+  };
+
+  return (
+    <div className="mt-1 space-y-0.5 pl-1">
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={blocks.map((b: any) => b.id)} strategy={verticalListSortingStrategy}>
+          {blocks.map((block: any) => (
+            <SortableBlockRow key={block.id} block={block} isHidden={isBlockHidden(block.id)} toggleHidden={() => toggleBlockHidden(block.id)} />
+          ))}
+        </SortableContext>
+      </DndContext>
+    </div>
+  );
+}
+
+/* ── Main Manager ── */
 export function PromptBlockManager({ onBack }: { onBack: () => void }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -62,6 +153,12 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
   const [localBlockPrefs, setLocalBlockPrefs] = useState<Record<string, LocalBlockPref>>({});
   const [localCatPrefs, setLocalCatPrefs] = useState<Record<string, LocalCatPref>>({});
   const [dirty, setDirty] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   const { data: blocks = [], isLoading: blocksLoading } = useQuery({
     queryKey: ["all_prompt_blocks"],
@@ -93,13 +190,10 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
     enabled: !!user,
   });
 
-  // Init local state from DB
   useEffect(() => {
     if (blockPrefs.length > 0) {
       const map: Record<string, LocalBlockPref> = {};
-      blockPrefs.forEach((p: any) => {
-        map[p.block_id] = { hidden: p.hidden, custom_sort_order: p.custom_sort_order };
-      });
+      blockPrefs.forEach((p: any) => { map[p.block_id] = { hidden: p.hidden, custom_sort_order: p.custom_sort_order }; });
       setLocalBlockPrefs(map);
     }
   }, [blockPrefs]);
@@ -107,9 +201,7 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     if (catPrefs.length > 0) {
       const map: Record<string, LocalCatPref> = {};
-      catPrefs.forEach((p: any) => {
-        map[p.category] = { hidden: p.hidden, custom_sort_order: p.custom_sort_order ?? 0 };
-      });
+      catPrefs.forEach((p: any) => { map[p.category] = { hidden: p.hidden, custom_sort_order: p.custom_sort_order ?? 0 }; });
       setLocalCatPrefs(map);
     }
   }, [catPrefs]);
@@ -120,24 +212,18 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
     pipeline === "image" ? isImageCategory(b.category) : !isImageCategory(b.category)
   );
 
-  // Get unique categories in order
   const allCategories = [...new Set(filteredBlocks.map((b: any) => b.category))];
-
-  // Sort categories by custom order
   const sortedCategories = [...allCategories].sort((a, b) => {
     const aOrder = localCatPrefs[a]?.custom_sort_order ?? allCategories.indexOf(a);
     const bOrder = localCatPrefs[b]?.custom_sort_order ?? allCategories.indexOf(b);
     return aOrder - bOrder;
   });
 
-  // Group blocks by category
   const blocksByCategory: Record<string, any[]> = {};
   filteredBlocks.forEach((block: any) => {
     if (!blocksByCategory[block.category]) blocksByCategory[block.category] = [];
     blocksByCategory[block.category].push(block);
   });
-
-  // Sort blocks within categories
   Object.keys(blocksByCategory).forEach((cat) => {
     blocksByCategory[cat].sort((a: any, b: any) => {
       const aSort = localBlockPrefs[a.id]?.custom_sort_order ?? a.sort_order;
@@ -165,36 +251,30 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
     setDirty(true);
   };
 
-  const moveCat = (cat: string, direction: "up" | "down") => {
-    const idx = sortedCategories.indexOf(cat);
-    if (direction === "up" && idx <= 0) return;
-    if (direction === "down" && idx >= sortedCategories.length - 1) return;
-    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+  // Category drag end
+  const handleCatDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIdx = sortedCategories.findIndex((c) => `cat-${c}` === active.id);
+    const newIdx = sortedCategories.findIndex((c) => `cat-${c}` === over.id);
+    if (oldIdx === -1 || newIdx === -1) return;
 
+    const reordered = arrayMove(sortedCategories, oldIdx, newIdx);
     const newPrefs = { ...localCatPrefs };
-    sortedCategories.forEach((c, i) => {
-      let newOrder = i;
-      if (i === idx) newOrder = swapIdx;
-      else if (i === swapIdx) newOrder = idx;
-      newPrefs[c] = { hidden: newPrefs[c]?.hidden ?? false, custom_sort_order: newOrder };
+    reordered.forEach((c, i) => {
+      newPrefs[c] = { hidden: newPrefs[c]?.hidden ?? false, custom_sort_order: i };
     });
     setLocalCatPrefs(newPrefs);
     setDirty(true);
   };
 
-  const moveBlock = (category: string, blockId: string, direction: "up" | "down") => {
-    const catBlocks = [...blocksByCategory[category]];
-    const idx = catBlocks.findIndex((b: any) => b.id === blockId);
-    if (direction === "up" && idx <= 0) return;
-    if (direction === "down" && idx >= catBlocks.length - 1) return;
-    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-
+  // Block reorder within category
+  const moveBlock = (_cat: string, _blockId: string, fromIdx: number, toIdx: number) => {
+    const cat = _cat;
+    const reordered = arrayMove(blocksByCategory[cat], fromIdx, toIdx);
     const newPrefs = { ...localBlockPrefs };
-    catBlocks.forEach((b: any, i: number) => {
-      let newOrder = i;
-      if (i === idx) newOrder = swapIdx;
-      else if (i === swapIdx) newOrder = idx;
-      newPrefs[b.id] = { hidden: newPrefs[b.id]?.hidden ?? false, custom_sort_order: newOrder };
+    reordered.forEach((b: any, i: number) => {
+      newPrefs[b.id] = { hidden: newPrefs[b.id]?.hidden ?? false, custom_sort_order: i };
     });
     setLocalBlockPrefs(newPrefs);
     setDirty(true);
@@ -204,7 +284,6 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
     if (!user) return;
     setSaving(true);
     try {
-      // Save block prefs
       const blockUpserts = Object.entries(localBlockPrefs).map(([block_id, pref]) => ({
         user_id: user.id, block_id, hidden: pref.hidden, custom_sort_order: pref.custom_sort_order,
       }));
@@ -212,8 +291,6 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
         const { error } = await supabase.from("user_prompt_block_prefs").upsert(blockUpserts, { onConflict: "user_id,block_id" });
         if (error) throw error;
       }
-
-      // Save category prefs
       const catUpserts = Object.entries(localCatPrefs).map(([category, pref]) => ({
         user_id: user.id, category, hidden: pref.hidden, custom_sort_order: pref.custom_sort_order,
       }));
@@ -221,7 +298,6 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
         const { error } = await supabase.from("user_prompt_category_prefs").upsert(catUpserts, { onConflict: "user_id,category" });
         if (error) throw error;
       }
-
       queryClient.invalidateQueries({ queryKey: ["user_prompt_block_prefs"] });
       queryClient.invalidateQueries({ queryKey: ["user_prompt_category_prefs"] });
       queryClient.invalidateQueries({ queryKey: ["img_prompt_blocks"] });
@@ -241,16 +317,13 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex items-center gap-3">
         <button onClick={onBack} className="tap-target flex items-center justify-center">
           <ArrowLeft className="h-5 w-5" />
         </button>
         <div className="flex-1">
           <h2 className="font-semibold text-sm">Prompt Library</h2>
-          <p className="text-[10px] text-muted-foreground">
-            {hiddenCats} groups hidden · {hiddenBlocks} blocks hidden
-          </p>
+          <p className="text-[10px] text-muted-foreground">{hiddenCats} groups hidden · {hiddenBlocks} blocks hidden</p>
         </div>
         <Button onClick={handleSave} disabled={saving || !dirty} size="sm" className="h-8">
           {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
@@ -258,104 +331,39 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
         </Button>
       </div>
 
-      {/* Pipeline Toggle */}
       <div className="flex rounded-lg bg-surface-1 p-1 gap-1">
         {(["image", "video"] as const).map((p) => (
-          <button
-            key={p}
-            onClick={() => setPipeline(p)}
-            className={cn(
-              "flex-1 rounded-md py-2 text-xs font-medium transition-colors capitalize",
-              pipeline === p ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-            )}
-          >
+          <button key={p} onClick={() => setPipeline(p)}
+            className={cn("flex-1 rounded-md py-2 text-xs font-medium transition-colors capitalize",
+              pipeline === p ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
             {p} Prompts
           </button>
         ))}
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-8">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        </div>
+        <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
       ) : (
-        <div className="space-y-1.5">
-          {sortedCategories.map((category, catIdx) => {
-            const catBlocks = blocksByCategory[category] || [];
-            const catHidden = isCatHidden(category);
-            const hiddenInCat = catBlocks.filter((b: any) => isBlockHidden(b.id)).length;
-
-            return (
-              <div key={category} className={cn(catHidden && "opacity-40")}>
-                {/* Category row */}
-                <div className="flex items-center gap-1.5 rounded-lg bg-surface-1 px-2 py-1.5">
-                  {/* Reorder category */}
-                  <div className="flex flex-col gap-0.5">
-                    <button onClick={() => moveCat(category, "up")} disabled={catIdx === 0}
-                      className="h-4 w-4 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-20">
-                      <ArrowUp className="h-3 w-3" />
-                    </button>
-                    <button onClick={() => moveCat(category, "down")} disabled={catIdx === sortedCategories.length - 1}
-                      className="h-4 w-4 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-20">
-                      <ArrowDown className="h-3 w-3" />
-                    </button>
-                  </div>
-
-                  {/* Category expand */}
-                  <Collapsible className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <CollapsibleTrigger className="flex items-center gap-2 flex-1 py-1">
-                        <span className="text-xs font-medium">{ALL_CATEGORY_LABELS[category] || category}</span>
-                        <Badge variant="secondary" className="text-[10px] h-5">{catBlocks.length}</Badge>
-                        {hiddenInCat > 0 && (
-                          <Badge variant="outline" className="text-[10px] h-5 text-muted-foreground">{hiddenInCat} hidden</Badge>
-                        )}
-                        <ChevronDown className="h-3 w-3 text-muted-foreground" />
-                      </CollapsibleTrigger>
-
-                      {/* Hide category toggle */}
-                      <button onClick={() => toggleCatHidden(category)}
-                        className={cn("h-7 w-7 flex items-center justify-center rounded-md transition-colors shrink-0",
-                          catHidden ? "text-muted-foreground hover:text-foreground" : "text-foreground hover:text-muted-foreground")}>
-                        {catHidden ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                      </button>
-                    </div>
-
-                    <CollapsibleContent>
-                      <div className="mt-1 space-y-0.5 pl-1">
-                        {catBlocks.map((block: any, idx: number) => (
-                          <div key={block.id}
-                            className={cn("flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors",
-                              isBlockHidden(block.id) ? "bg-muted/30 opacity-50" : "bg-background hover:bg-surface-1")}>
-                            <div className="flex flex-col gap-0.5">
-                              <button onClick={() => moveBlock(category, block.id, "up")} disabled={idx === 0}
-                                className="h-3.5 w-3.5 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-20">
-                                <ArrowUp className="h-2.5 w-2.5" />
-                              </button>
-                              <button onClick={() => moveBlock(category, block.id, "down")} disabled={idx === catBlocks.length - 1}
-                                className="h-3.5 w-3.5 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-20">
-                                <ArrowDown className="h-2.5 w-2.5" />
-                              </button>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[11px] font-medium truncate">{block.label}</p>
-                              <p className="text-[10px] text-muted-foreground truncate">{block.value}</p>
-                            </div>
-                            <button onClick={() => toggleBlockHidden(block.id)}
-                              className={cn("h-6 w-6 flex items-center justify-center rounded-md transition-colors shrink-0",
-                                isBlockHidden(block.id) ? "text-muted-foreground hover:text-foreground" : "text-foreground hover:text-muted-foreground")}>
-                              {isBlockHidden(block.id) ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </CollapsibleContent>
-                  </Collapsible>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleCatDragEnd}>
+          <SortableContext items={sortedCategories.map((c) => `cat-${c}`)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-1.5">
+              {sortedCategories.map((category, catIdx) => (
+                <SortableCategoryRow
+                  key={category}
+                  category={category}
+                  catBlocks={blocksByCategory[category] || []}
+                  catIdx={catIdx}
+                  totalCats={sortedCategories.length}
+                  isCatHidden={isCatHidden(category)}
+                  isBlockHidden={isBlockHidden}
+                  toggleCatHidden={toggleCatHidden}
+                  toggleBlockHidden={toggleBlockHidden}
+                  moveBlock={moveBlock}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
     </div>
   );
