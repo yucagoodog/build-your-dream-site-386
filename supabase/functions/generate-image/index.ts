@@ -37,23 +37,42 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action } = body;
 
-    // ACTION: start edit
+    // ACTION: start generation with up to 4 images
     if (action === "start") {
-      const { source_image_id, prompt, negative_prompt, output_size, seed, enable_prompt_expansion, model, parent_edit_id } = body;
+      const {
+        image_urls, prompt, negative_prompt, output_size,
+        seed, enable_prompt_expansion, model, source_image_id, parent_edit_id,
+      } = body;
 
-      // Get source image
-      const { data: sourceImage, error: srcErr } = await supabase
-        .from("source_images")
-        .select("*")
-        .eq("id", source_image_id)
-        .eq("user_id", user.id)
-        .single();
-
-      if (srcErr || !sourceImage) {
-        return new Response(JSON.stringify({ error: "Source image not found" }), {
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+      const urls: string[] = image_urls || [];
+      if (urls.length === 0 && !source_image_id) {
+        return new Response(JSON.stringify({ error: "No images provided" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
+      }
+
+      // If single source_image_id provided (legacy), resolve URL
+      if (source_image_id && urls.length === 0) {
+        const { data: src } = await supabase
+          .from("source_images")
+          .select("image_url")
+          .eq("id", source_image_id)
+          .single();
+        if (src?.image_url) urls.push(src.image_url);
+      }
+
+      // If parent edit, use its output
+      if (parent_edit_id) {
+        const { data: parentEdit } = await supabase
+          .from("image_edits")
+          .select("output_image_url")
+          .eq("id", parent_edit_id)
+          .eq("user_id", user.id)
+          .single();
+        if (parentEdit?.output_image_url) {
+          urls.length = 0;
+          urls.push(parentEdit.output_image_url);
+        }
       }
 
       // Get user's API key
@@ -71,21 +90,9 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Determine image URL - use parent edit output if chaining, otherwise source
-      let imageUrl = sourceImage.image_url;
-      if (parent_edit_id) {
-        const { data: parentEdit } = await supabase
-          .from("image_edits")
-          .select("output_image_url")
-          .eq("id", parent_edit_id)
-          .eq("user_id", user.id)
-          .single();
-        if (parentEdit?.output_image_url) {
-          imageUrl = parentEdit.output_image_url;
-        }
-      }
-
       // Call Atlas Cloud Image Edit API
+      // The API accepts `image` — for multiple images we pass the first one as primary
+      // and additional images via the array (API may accept comma-separated or array)
       const generateRes = await fetch(
         "https://api.atlascloud.ai/api/v1/model/generateImage",
         {
@@ -96,7 +103,7 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             model: model || "alibaba/wan-2.6/image-edit",
-            image: imageUrl,
+            image: urls.length === 1 ? urls[0] : urls,
             prompt: prompt || "",
             negative_prompt: negative_prompt || "",
             size: output_size || "1024*1024",
@@ -127,7 +134,7 @@ Deno.serve(async (req) => {
       const { data: edit, error: editErr } = await supabase
         .from("image_edits")
         .insert({
-          source_image_id,
+          source_image_id: source_image_id || null,
           parent_edit_id: parent_edit_id || null,
           user_id: user.id,
           model: model || "wan-2.6-image-edit",
@@ -138,7 +145,8 @@ Deno.serve(async (req) => {
           enable_prompt_expansion: enable_prompt_expansion ?? true,
           atlas_task_id: predictionId,
           status: "processing",
-          cost: 0.021,
+          cost: 0.021 * urls.length,
+          source_image_urls: urls,
         })
         .select()
         .single();
@@ -181,9 +189,7 @@ Deno.serve(async (req) => {
 
       const pollRes = await fetch(
         `https://api.atlascloud.ai/api/v1/model/prediction/${edit.atlas_task_id}`,
-        {
-          headers: { Authorization: `Bearer ${settings?.atlas_api_key}` },
-        }
+        { headers: { Authorization: `Bearer ${settings?.atlas_api_key}` } }
       );
 
       const pollResult = await pollRes.json();

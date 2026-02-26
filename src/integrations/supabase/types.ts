@@ -200,7 +200,8 @@ export type Database = {
           parent_edit_id: string | null
           prompt: string | null
           seed: number | null
-          source_image_id: string
+          source_image_id: string | null
+          source_image_urls: string[] | null
           status: string
           updated_at: string
           user_id: string
@@ -222,7 +223,8 @@ export type Database = {
           parent_edit_id?: string | null
           prompt?: string | null
           seed?: number | null
-          source_image_id: string
+          source_image_id?: string | null
+          source_image_urls?: string[] | null
           status?: string
           updated_at?: string
           user_id: string
@@ -244,7 +246,8 @@ export type Database = {
           parent_edit_id?: string | null
           prompt?: string | null
           seed?: number | null
-          source_image_id?: string
+          source_image_id?: string | null
+          source_image_urls?: string[] | null
           status?: string
           updated_at?: string
           user_id?: string
