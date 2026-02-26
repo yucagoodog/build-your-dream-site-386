@@ -381,12 +381,15 @@ const SceneEditorPage = () => {
             )}
 
             {/* Formula blocks */}
-            <p className="text-[10px] text-muted-foreground/60">Formula: Shot Setup → Camera → Motion → Style → Super Prompt</p>
+            <p className="text-[10px] text-muted-foreground/60">Formula: Shot Setup → Camera → Motion → Style → Identity → Super Prompt</p>
             {[
               { key: "shot_setup", label: "① Shot Setup" },
               { key: "camera", label: "② Camera Move" },
               { key: "motion", label: "③ Subject Motion" },
               { key: "style", label: "④ Style & Mood" },
+              { key: "identity", label: "⑤ Identity Preserve" },
+              { key: "multi_char", label: "⑥ Multi-Character" },
+              { key: "multi_shot", label: "⑦ Multi-Shot" },
             ].map(({ key, label }) => (
               <Collapsible key={key}>
                 <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg bg-surface-1 px-3 py-2.5 text-xs font-medium">
