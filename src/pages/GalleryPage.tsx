@@ -226,6 +226,7 @@ const GalleryPage = () => {
           <section>
             <Label className="text-xs text-muted-foreground mb-2 block">
               Source Images ({filledSlots.length}/{MAX_IMAGES})
+              {filledSlots.length > 0 && <span className="ml-1 text-[10px]">· Reference as "image 1", "image 2", etc. in your prompt</span>}
             </Label>
             <div className="grid grid-cols-2 gap-2 lg:gap-3">
               {slotImages.map((url, i) => (
@@ -241,7 +242,10 @@ const GalleryPage = () => {
                 >
                   {url ? (
                     <>
-                      <img src={url} alt={`Slot ${i + 1}`} className="w-full h-full object-cover" />
+                      <img src={url} alt={`Image ${filledSlots.indexOf(url) + 1}`} className="w-full h-full object-cover" />
+                      <span className="absolute bottom-1.5 left-1.5 h-6 w-6 rounded-full bg-primary text-primary-foreground text-[11px] font-bold flex items-center justify-center shadow-sm">
+                        {filledSlots.indexOf(url) + 1}
+                      </span>
                       <button
                         onClick={(e) => { e.stopPropagation(); removeSlot(i); }}
                         className="absolute top-1.5 right-1.5 h-7 w-7 rounded-full bg-background/80 backdrop-blur flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 lg:opacity-100"
