@@ -14,6 +14,62 @@ export type Database = {
   }
   public: {
     Tables: {
+      batch_jobs: {
+        Row: {
+          completed_count: number
+          created_at: string
+          failed_count: number
+          id: string
+          negative_prompt: string | null
+          parameters: Json | null
+          project_id: string
+          prompt: string | null
+          source_image_ids: string[] | null
+          status: string
+          total_cost: number | null
+          total_count: number
+          user_id: string
+        }
+        Insert: {
+          completed_count?: number
+          created_at?: string
+          failed_count?: number
+          id?: string
+          negative_prompt?: string | null
+          parameters?: Json | null
+          project_id: string
+          prompt?: string | null
+          source_image_ids?: string[] | null
+          status?: string
+          total_cost?: number | null
+          total_count?: number
+          user_id: string
+        }
+        Update: {
+          completed_count?: number
+          created_at?: string
+          failed_count?: number
+          id?: string
+          negative_prompt?: string | null
+          parameters?: Json | null
+          project_id?: string
+          prompt?: string | null
+          source_image_ids?: string[] | null
+          status?: string
+          total_cost?: number | null
+          total_count?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "batch_jobs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       characters: {
         Row: {
           best_seed: number | null
@@ -128,41 +184,84 @@ export type Database = {
       }
       image_edits: {
         Row: {
+          atlas_result_url: string | null
+          atlas_task_id: string | null
+          character_ids: string[] | null
+          cost: number | null
           created_at: string
-          edit_type: string
-          edited_url: string | null
+          enable_prompt_expansion: boolean | null
+          error_message: string | null
           id: string
-          original_url: string
-          parameters: Json | null
-          scene_id: string
+          is_final: boolean
+          model: string
+          negative_prompt: string | null
+          output_image_url: string | null
+          output_size: string | null
+          parent_edit_id: string | null
+          prompt: string | null
+          seed: number | null
+          source_image_id: string
+          status: string
+          updated_at: string
           user_id: string
         }
         Insert: {
+          atlas_result_url?: string | null
+          atlas_task_id?: string | null
+          character_ids?: string[] | null
+          cost?: number | null
           created_at?: string
-          edit_type?: string
-          edited_url?: string | null
+          enable_prompt_expansion?: boolean | null
+          error_message?: string | null
           id?: string
-          original_url: string
-          parameters?: Json | null
-          scene_id: string
+          is_final?: boolean
+          model?: string
+          negative_prompt?: string | null
+          output_image_url?: string | null
+          output_size?: string | null
+          parent_edit_id?: string | null
+          prompt?: string | null
+          seed?: number | null
+          source_image_id: string
+          status?: string
+          updated_at?: string
           user_id: string
         }
         Update: {
+          atlas_result_url?: string | null
+          atlas_task_id?: string | null
+          character_ids?: string[] | null
+          cost?: number | null
           created_at?: string
-          edit_type?: string
-          edited_url?: string | null
+          enable_prompt_expansion?: boolean | null
+          error_message?: string | null
           id?: string
-          original_url?: string
-          parameters?: Json | null
-          scene_id?: string
+          is_final?: boolean
+          model?: string
+          negative_prompt?: string | null
+          output_image_url?: string | null
+          output_size?: string | null
+          parent_edit_id?: string | null
+          prompt?: string | null
+          seed?: number | null
+          source_image_id?: string
+          status?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "image_edits_scene_id_fkey"
-            columns: ["scene_id"]
+            foreignKeyName: "image_edits_parent_edit_id_fkey"
+            columns: ["parent_edit_id"]
             isOneToOne: false
-            referencedRelation: "scenes"
+            referencedRelation: "image_edits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "image_edits_source_image_id_fkey"
+            columns: ["source_image_id"]
+            isOneToOne: false
+            referencedRelation: "source_images"
             referencedColumns: ["id"]
           },
         ]
@@ -173,6 +272,7 @@ export type Database = {
           description: string | null
           id: string
           name: string
+          project_type: string
           script: string | null
           status: string
           updated_at: string
@@ -183,6 +283,7 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
+          project_type?: string
           script?: string | null
           status?: string
           updated_at?: string
@@ -193,6 +294,7 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          project_type?: string
           script?: string | null
           status?: string
           updated_at?: string
@@ -309,6 +411,62 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "scenes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      source_images: {
+        Row: {
+          approved_edit_id: string | null
+          created_at: string
+          file_size: number | null
+          height: number | null
+          id: string
+          image_url: string
+          original_filename: string | null
+          project_id: string
+          status: string
+          tags: string[] | null
+          updated_at: string
+          user_id: string
+          width: number | null
+        }
+        Insert: {
+          approved_edit_id?: string | null
+          created_at?: string
+          file_size?: number | null
+          height?: number | null
+          id?: string
+          image_url: string
+          original_filename?: string | null
+          project_id: string
+          status?: string
+          tags?: string[] | null
+          updated_at?: string
+          user_id: string
+          width?: number | null
+        }
+        Update: {
+          approved_edit_id?: string | null
+          created_at?: string
+          file_size?: number | null
+          height?: number | null
+          id?: string
+          image_url?: string
+          original_filename?: string | null
+          project_id?: string
+          status?: string
+          tags?: string[] | null
+          updated_at?: string
+          user_id?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "source_images_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"

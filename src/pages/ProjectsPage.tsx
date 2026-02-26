@@ -8,13 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { Clapperboard, DollarSign, Loader2, Trash2 } from "lucide-react";
+import { Clapperboard, Loader2, Trash2, ImageIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
+import { cn } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,6 +27,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+type ProjectType = "video" | "image";
+
 const ProjectsPage = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -35,6 +38,8 @@ const ProjectsPage = () => {
   const [description, setDescription] = useState("");
   const [script, setScript] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [activeMode, setActiveMode] = useState<ProjectType>("video");
+  const [newProjectType, setNewProjectType] = useState<ProjectType>("video");
 
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ["projects"],
@@ -49,6 +54,10 @@ const ProjectsPage = () => {
     enabled: !!user,
   });
 
+  const filteredProjects = projects.filter(
+    (p: any) => (p.project_type || "video") === activeMode
+  );
+
   const createMutation = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("projects").insert({
@@ -56,7 +65,8 @@ const ProjectsPage = () => {
         name: name.trim(),
         description: description.trim(),
         script: script.trim(),
-      });
+        project_type: newProjectType,
+      } as any);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -95,26 +105,67 @@ const ProjectsPage = () => {
     failed: "failed",
   };
 
+  const handleProjectClick = (project: any) => {
+    const type = project.project_type || "video";
+    if (type === "image") {
+      navigate(`/gallery/${project.id}`);
+    } else {
+      navigate(`/scenes/${project.id}`);
+    }
+  };
+
   return (
     <AppShell title="Projects">
       <div className="p-4 space-y-3">
+        {/* Mode Switcher */}
+        <div className="flex rounded-lg bg-muted p-1 gap-1">
+          <button
+            onClick={() => setActiveMode("video")}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-1.5 rounded-md py-2 text-xs font-medium transition-colors",
+              activeMode === "video"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Clapperboard className="h-3.5 w-3.5" />
+            Video
+          </button>
+          <button
+            onClick={() => setActiveMode("image")}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-1.5 rounded-md py-2 text-xs font-medium transition-colors",
+              activeMode === "image"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <ImageIcon className="h-3.5 w-3.5" />
+            Image
+          </button>
+        </div>
+
         {isLoading ? (
           <div className="flex items-center justify-center pt-32">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
-        ) : projects.length === 0 ? (
+        ) : filteredProjects.length === 0 ? (
           <div className="flex flex-col items-center justify-center pt-32 text-center">
-            <Clapperboard className="h-12 w-12 text-muted-foreground/50 mb-4" />
-            <p className="text-muted-foreground text-sm">No projects yet</p>
-            <p className="text-muted-foreground/70 text-xs mt-1">Tap + to create your first project</p>
+            {activeMode === "video" ? (
+              <Clapperboard className="h-12 w-12 text-muted-foreground/50 mb-4" />
+            ) : (
+              <ImageIcon className="h-12 w-12 text-muted-foreground/50 mb-4" />
+            )}
+            <p className="text-muted-foreground text-sm">No {activeMode} projects yet</p>
+            <p className="text-muted-foreground/70 text-xs mt-1">Tap + to create your first {activeMode} project</p>
           </div>
         ) : (
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {projects.map((project) => (
+            {filteredProjects.map((project: any) => (
               <Card
                 key={project.id}
                 className="tap-target cursor-pointer border-border/50 bg-card transition-colors hover:border-primary/30 active:bg-surface-1"
-                onClick={() => navigate(`/scenes/${project.id}`)}
+                onClick={() => handleProjectClick(project)}
               >
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-2">
@@ -145,20 +196,48 @@ const ProjectsPage = () => {
         )}
       </div>
 
-      <FAB onClick={() => setSheetOpen(true)} label="New Project" />
+      <FAB onClick={() => { setNewProjectType(activeMode); setSheetOpen(true); }} label="New Project" />
 
       {/* New Project Bottom Sheet */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side="bottom" className="rounded-t-2xl max-h-[85vh] overflow-y-auto">
           <SheetHeader className="text-left mb-4">
-            <SheetTitle>New Project</SheetTitle>
-            <SheetDescription>Create a new video production project.</SheetDescription>
+            <SheetTitle>New {newProjectType === "video" ? "Video" : "Image"} Project</SheetTitle>
+            <SheetDescription>Create a new {newProjectType} production project.</SheetDescription>
           </SheetHeader>
           <div className="space-y-4">
+            {/* Type selector */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Project Type</Label>
+              <div className="flex rounded-lg bg-muted p-1 gap-1">
+                <button
+                  onClick={() => setNewProjectType("video")}
+                  className={cn(
+                    "flex-1 rounded-md py-2 text-xs font-medium transition-colors",
+                    newProjectType === "video"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  Video
+                </button>
+                <button
+                  onClick={() => setNewProjectType("image")}
+                  className={cn(
+                    "flex-1 rounded-md py-2 text-xs font-medium transition-colors",
+                    newProjectType === "image"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  Image
+                </button>
+              </div>
+            </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Project Name</Label>
               <Input
-                placeholder="My Video Project"
+                placeholder={newProjectType === "video" ? "My Video Project" : "My Image Project"}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="bg-surface-1"
@@ -173,15 +252,17 @@ const ProjectsPage = () => {
                 className="bg-surface-1"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Script</Label>
-              <Textarea
-                placeholder="Paste your full script here. You can break it into scenes later."
-                value={script}
-                onChange={(e) => setScript(e.target.value)}
-                className="bg-surface-1 min-h-[120px]"
-              />
-            </div>
+            {newProjectType === "video" && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Script</Label>
+                <Textarea
+                  placeholder="Paste your full script here. You can break it into scenes later."
+                  value={script}
+                  onChange={(e) => setScript(e.target.value)}
+                  className="bg-surface-1 min-h-[120px]"
+                />
+              </div>
+            )}
             <Button
               onClick={() => createMutation.mutate()}
               disabled={!name.trim() || createMutation.isPending}
@@ -200,7 +281,7 @@ const ProjectsPage = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Project?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this project and all its scenes, characters, and generations.
+              This will permanently delete this project and all its data.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

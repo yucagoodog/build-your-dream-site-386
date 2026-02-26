@@ -15,7 +15,7 @@ export function BottomNav() {
   const navigate = useNavigate();
 
   const isActive = (path: string) => {
-    if (path === "/") return location.pathname === "/";
+    if (path === "/") return location.pathname === "/" || location.pathname.startsWith("/gallery") || location.pathname.startsWith("/image");
     return location.pathname.startsWith(path);
   };
 
