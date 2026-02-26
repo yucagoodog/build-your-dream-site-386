@@ -243,7 +243,7 @@ const GalleryPage = () => {
                   {url ? (
                     <>
                       <img src={url} alt={`Image ${filledSlots.indexOf(url) + 1}`} className="w-full h-full object-cover" />
-                      <span className="absolute bottom-1.5 left-1.5 h-6 w-6 rounded-full bg-primary text-primary-foreground text-[11px] font-bold flex items-center justify-center shadow-sm">
+                      <span className="absolute bottom-1.5 left-1.5 z-10 h-6 w-6 rounded-full bg-primary text-primary-foreground text-[11px] font-bold flex items-center justify-center shadow-md ring-1 ring-background/50">
                         {filledSlots.indexOf(url) + 1}
                       </span>
                       <button
