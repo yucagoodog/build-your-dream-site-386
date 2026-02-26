@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppShell } from "@/components/AppShell";
 import { FAB } from "@/components/FAB";
 import { StatusDot } from "@/components/StatusDot";
@@ -40,6 +40,22 @@ const ProjectsPage = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [activeMode, setActiveMode] = useState<ProjectType>("video");
   const [newProjectType, setNewProjectType] = useState<ProjectType>("video");
+
+  // Load default mode from user settings
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("user_settings")
+      .select("*")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data && (data as any).default_mode) {
+          setActiveMode((data as any).default_mode as ProjectType);
+          setNewProjectType((data as any).default_mode as ProjectType);
+        }
+      });
+  }, [user]);
 
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ["projects"],

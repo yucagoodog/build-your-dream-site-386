@@ -483,6 +483,7 @@ export type Database = {
           created_at: string
           default_audio: boolean
           default_duration: number
+          default_mode: string
           default_model: string
           default_prompt_expansion: boolean
           default_resolution: string
@@ -496,6 +497,7 @@ export type Database = {
           created_at?: string
           default_audio?: boolean
           default_duration?: number
+          default_mode?: string
           default_model?: string
           default_prompt_expansion?: boolean
           default_resolution?: string
@@ -509,6 +511,7 @@ export type Database = {
           created_at?: string
           default_audio?: boolean
           default_duration?: number
+          default_mode?: string
           default_model?: string
           default_prompt_expansion?: boolean
           default_resolution?: string

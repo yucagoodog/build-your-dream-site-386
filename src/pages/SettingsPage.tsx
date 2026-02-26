@@ -8,10 +8,11 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Lock, Zap, BookOpen, Loader2, Save, LogOut } from "lucide-react";
+import { Lock, Zap, BookOpen, Loader2, Save, LogOut, Clapperboard, ImageIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 const SettingsPage = () => {
   const { user, signOut } = useAuth();
@@ -26,6 +27,7 @@ const SettingsPage = () => {
   const [seed, setSeed] = useState("");
   const [promptExpansion, setPromptExpansion] = useState(true);
   const [audio, setAudio] = useState(false);
+  const [defaultMode, setDefaultMode] = useState<"video" | "image">("video");
 
   useEffect(() => {
     if (!user) return;
@@ -42,6 +44,8 @@ const SettingsPage = () => {
           setDuration(data.default_duration);
           setShotType(data.default_shot_type);
           setPromptExpansion(data.default_prompt_expansion);
+          setAudio(data.default_audio);
+          setDefaultMode((data as any).default_mode || "video");
           setAudio(data.default_audio);
         }
         setLoading(false);
@@ -61,7 +65,8 @@ const SettingsPage = () => {
         default_shot_type: shotType,
         default_prompt_expansion: promptExpansion,
         default_audio: audio,
-      })
+        default_mode: defaultMode,
+      } as any)
       .eq("user_id", user.id);
 
     if (error) {
@@ -70,7 +75,7 @@ const SettingsPage = () => {
       toast({ title: "Settings saved" });
     }
     setSaving(false);
-  }, [user, apiKey, model, resolution, duration, shotType, promptExpansion, audio]);
+  }, [user, apiKey, model, resolution, duration, shotType, promptExpansion, audio, defaultMode]);
 
   if (loading) {
     return (
@@ -103,12 +108,49 @@ const SettingsPage = () => {
           </CardContent>
         </Card>
 
-        {/* Default Generation Parameters */}
+        {/* Default Mode */}
+        <Card className="border-border/50">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Zap className="h-4 w-4 text-primary" />
+              <h2 className="font-semibold text-sm">Default Mode</h2>
+            </div>
+            <p className="text-[10px] text-muted-foreground">Which pipeline opens by default on the Projects page.</p>
+            <div className="flex rounded-lg bg-surface-1 p-1 gap-1">
+              <button
+                onClick={() => setDefaultMode("video")}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-1.5 rounded-md py-2.5 text-xs font-medium transition-colors",
+                  defaultMode === "video"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Clapperboard className="h-3.5 w-3.5" />
+                Video
+              </button>
+              <button
+                onClick={() => setDefaultMode("image")}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-1.5 rounded-md py-2.5 text-xs font-medium transition-colors",
+                  defaultMode === "image"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <ImageIcon className="h-3.5 w-3.5" />
+                Image
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Default Video Parameters */}
         <Card className="border-border/50">
           <CardContent className="p-4 space-y-4">
             <div className="flex items-center gap-2">
-              <Zap className="h-4 w-4 text-primary" />
-              <h2 className="font-semibold text-sm">Default Parameters</h2>
+              <Clapperboard className="h-4 w-4 text-primary" />
+              <h2 className="font-semibold text-sm">Video Parameters</h2>
             </div>
 
             <div className="space-y-3">
