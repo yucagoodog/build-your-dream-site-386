@@ -122,13 +122,24 @@ const SceneEditorPage = () => {
     return () => clearTimeout(timer);
   }, [direction, prompt, negativePrompt, seedImageUrl, resolution, duration, seed, useRandomSeed, shotType, promptExpansion, audioEnabled]);
 
-  const { applyPrefs } = usePromptBlockPrefs();
+  const { applyPrefs, isCategoryHidden, applyCategoryPrefs } = usePromptBlockPrefs();
 
   const blocksByCategory = applyPrefs(promptBlocks).reduce((acc: Record<string, any[]>, block: any) => {
     if (!acc[block.category]) acc[block.category] = [];
     acc[block.category].push(block);
     return acc;
   }, {});
+
+  const videoCategoryLabels: Record<string, string> = {
+    shot_setup: "Shot Setup", camera: "Camera Move", motion: "Subject Motion",
+    style: "Style & Mood", identity: "Identity Preserve",
+    multi_char: "Multi-Character", multi_shot: "Multi-Shot",
+  };
+
+  const sortedFormulaCategories = applyCategoryPrefs(
+    ["shot_setup", "camera", "motion", "style", "identity", "multi_char", "multi_shot"]
+      .filter((k) => (blocksByCategory[k] || []).length > 0)
+  );
 
   const toggleBlock = (blockId: string, value: string) => {
     setSelectedBlocks((prev) => {
@@ -364,7 +375,7 @@ const SceneEditorPage = () => {
             </div>
 
             {/* Templates */}
-            {(blocksByCategory["template"] || []).length > 0 && (
+            {!isCategoryHidden("template") && (blocksByCategory["template"] || []).length > 0 && (
               <Collapsible>
                 <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg bg-primary/10 px-3 py-2.5 text-xs font-medium text-primary">
                   ⚡ Quick Templates
@@ -383,20 +394,12 @@ const SceneEditorPage = () => {
               </Collapsible>
             )}
 
-            {/* Formula blocks */}
-            <p className="text-[10px] text-muted-foreground/60">Formula: Shot Setup → Camera → Motion → Style → Identity → Super Prompt</p>
-            {[
-              { key: "shot_setup", label: "① Shot Setup" },
-              { key: "camera", label: "② Camera Move" },
-              { key: "motion", label: "③ Subject Motion" },
-              { key: "style", label: "④ Style & Mood" },
-              { key: "identity", label: "⑤ Identity Preserve" },
-              { key: "multi_char", label: "⑥ Multi-Character" },
-              { key: "multi_shot", label: "⑦ Multi-Shot" },
-            ].map(({ key, label }) => (
+            {/* Formula blocks — dynamically ordered and filtered */}
+            <p className="text-[10px] text-muted-foreground/60">Formula: {sortedFormulaCategories.map((k) => videoCategoryLabels[k] || k).join(" → ")}</p>
+            {sortedFormulaCategories.map((key) => (
               <Collapsible key={key}>
                 <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg bg-surface-1 px-3 py-2.5 text-xs font-medium">
-                  {label}
+                  {videoCategoryLabels[key] || key}
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] text-muted-foreground">{(blocksByCategory[key] || []).length}</span>
                     <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
@@ -417,10 +420,10 @@ const SceneEditorPage = () => {
             ))}
 
             {/* Super Prompts */}
-            {(blocksByCategory["super_prompt"] || []).length > 0 && (
+            {!isCategoryHidden("super_prompt") && (blocksByCategory["super_prompt"] || []).length > 0 && (
               <Collapsible>
                 <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg bg-accent/30 px-3 py-2.5 text-xs font-medium">
-                  <span className="flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5" /> ⑥ Super Prompts</span>
+                  <span className="flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5" /> Super Prompts</span>
                   <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-2 space-y-2">
