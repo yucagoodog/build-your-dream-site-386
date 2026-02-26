@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,32 @@ const GalleryPage = () => {
   const [useRandomSeed, setUseRandomSeed] = useState(true);
   const [promptExpansion, setPromptExpansion] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [defaultsLoaded, setDefaultsLoaded] = useState(false);
+
+  // Load user's default image settings
+  const { data: userDefaults } = useQuery({
+    queryKey: ["user_settings_image_defaults", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("user_settings")
+        .select("default_image_model, default_image_output_size, default_image_prompt_expansion")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!user,
+    staleTime: Infinity,
+  });
+
+  useEffect(() => {
+    if (userDefaults && !defaultsLoaded) {
+      const d = userDefaults as any;
+      if (d.default_image_model) setModel(d.default_image_model);
+      if (d.default_image_output_size) setOutputSize(d.default_image_output_size);
+      if (d.default_image_prompt_expansion !== undefined) setPromptExpansion(d.default_image_prompt_expansion);
+      setDefaultsLoaded(true);
+    }
+  }, [userDefaults, defaultsLoaded]);
 
   const { data: project } = useQuery({
     queryKey: ["project", projectId],
