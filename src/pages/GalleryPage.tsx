@@ -108,13 +108,17 @@ const GalleryPage = () => {
     },
   });
 
-  const { applyPrefs } = usePromptBlockPrefs();
+  const { applyPrefs, applyCategoryPrefs, isCategoryHidden, getCategorySortOrder } = usePromptBlockPrefs();
 
   const blocksByCategory = applyPrefs(promptBlocks).reduce((acc: Record<string, any[]>, block: any) => {
     if (!acc[block.category]) acc[block.category] = [];
     acc[block.category].push(block);
     return acc;
   }, {});
+
+  const sortedImageCategories = applyCategoryPrefs(
+    Object.keys(blocksByCategory).filter((c) => c !== "img_negative")
+  );
 
   const categoryLabels: Record<string, string> = {
     img_realism: "Realism",
@@ -299,8 +303,9 @@ const GalleryPage = () => {
               maxLength={2000}
             />
 
-            {Object.entries(blocksByCategory)
-              .filter(([cat]) => cat !== "img_negative")
+            {sortedImageCategories
+              .map((category) => [category, blocksByCategory[category] || []] as [string, any[]])
+              .filter(([, blocks]) => blocks.length > 0)
               .map(([category, blocks]) => (
                 <Collapsible key={category}>
                   <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 text-xs font-medium">
