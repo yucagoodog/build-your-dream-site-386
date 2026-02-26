@@ -114,11 +114,13 @@ const GalleryPage = () => {
   }, {});
 
   const categoryLabels: Record<string, string> = {
-    img_realism: "Photo Realism",
+    img_realism: "Realism",
+    img_identity: "Identity Preserve",
+    img_face_swap: "Face Swap",
     img_lighting: "Lighting",
-    img_subject: "Subject Edits",
+    img_scene: "Scene Edits",
+    img_style: "Style & Film",
     img_enhance: "Enhancement",
-    img_negative: "Negative Presets",
   };
 
   const filledSlots = slotImages.filter(Boolean) as string[];
