@@ -13,13 +13,18 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { IMAGE_SIZES } from "@/lib/image-sizes";
 
 const SettingsPage = () => {
   const { user, signOut } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // Shared
   const [apiKey, setApiKey] = useState("");
+  const [defaultMode, setDefaultMode] = useState<"video" | "image">("video");
+
+  // Video defaults
   const [model, setModel] = useState("wan26-i2v-flash");
   const [resolution, setResolution] = useState("720p");
   const [duration, setDuration] = useState(5);
@@ -27,7 +32,11 @@ const SettingsPage = () => {
   const [seed, setSeed] = useState("");
   const [promptExpansion, setPromptExpansion] = useState(true);
   const [audio, setAudio] = useState(false);
-  const [defaultMode, setDefaultMode] = useState<"video" | "image">("video");
+
+  // Image defaults
+  const [imageModel, setImageModel] = useState("alibaba/wan-2.6/image-edit");
+  const [imageOutputSize, setImageOutputSize] = useState("1024*1024");
+  const [imagePromptExpansion, setImagePromptExpansion] = useState(true);
 
   useEffect(() => {
     if (!user) return;
@@ -38,15 +47,18 @@ const SettingsPage = () => {
       .maybeSingle()
       .then(({ data }) => {
         if (data) {
-          setApiKey(data.atlas_api_key || "");
-          setModel(data.default_model);
-          setResolution(data.default_resolution);
-          setDuration(data.default_duration);
-          setShotType(data.default_shot_type);
-          setPromptExpansion(data.default_prompt_expansion);
-          setAudio(data.default_audio);
-          setDefaultMode((data as any).default_mode || "video");
-          setAudio(data.default_audio);
+          const d = data as any;
+          setApiKey(d.atlas_api_key || "");
+          setDefaultMode(d.default_mode || "video");
+          setModel(d.default_model);
+          setResolution(d.default_resolution);
+          setDuration(d.default_duration);
+          setShotType(d.default_shot_type);
+          setPromptExpansion(d.default_prompt_expansion);
+          setAudio(d.default_audio);
+          setImageModel(d.default_image_model || "alibaba/wan-2.6/image-edit");
+          setImageOutputSize(d.default_image_output_size || "1024*1024");
+          setImagePromptExpansion(d.default_image_prompt_expansion ?? true);
         }
         setLoading(false);
       });
@@ -59,13 +71,16 @@ const SettingsPage = () => {
       .from("user_settings")
       .update({
         atlas_api_key: apiKey,
+        default_mode: defaultMode,
         default_model: model,
         default_resolution: resolution,
         default_duration: duration,
         default_shot_type: shotType,
         default_prompt_expansion: promptExpansion,
         default_audio: audio,
-        default_mode: defaultMode,
+        default_image_model: imageModel,
+        default_image_output_size: imageOutputSize,
+        default_image_prompt_expansion: imagePromptExpansion,
       } as any)
       .eq("user_id", user.id);
 
@@ -75,7 +90,7 @@ const SettingsPage = () => {
       toast({ title: "Settings saved" });
     }
     setSaving(false);
-  }, [user, apiKey, model, resolution, duration, shotType, promptExpansion, audio, defaultMode]);
+  }, [user, apiKey, defaultMode, model, resolution, duration, shotType, promptExpansion, audio, imageModel, imageOutputSize, imagePromptExpansion]);
 
   if (loading) {
     return (
@@ -104,7 +119,7 @@ const SettingsPage = () => {
               onChange={(e) => setApiKey(e.target.value)}
               className="bg-surface-1 text-sm"
             />
-            <p className="text-[10px] text-muted-foreground">Required for video generation. Stored securely.</p>
+            <p className="text-[10px] text-muted-foreground">Required for video and image generation. Stored securely.</p>
           </CardContent>
         </Card>
 
@@ -145,40 +160,33 @@ const SettingsPage = () => {
           </CardContent>
         </Card>
 
-        {/* Default Video Parameters */}
+        {/* Video Parameters */}
         <Card className="border-border/50">
           <CardContent className="p-4 space-y-4">
             <div className="flex items-center gap-2">
               <Clapperboard className="h-4 w-4 text-primary" />
               <h2 className="font-semibold text-sm">Video Parameters</h2>
             </div>
-
             <div className="space-y-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Model</Label>
                 <Select value={model} onValueChange={setModel}>
-                  <SelectTrigger className="bg-surface-1 text-sm h-10">
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger className="bg-surface-1 text-sm h-10"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="wan26-i2v-flash">WAN 2.6 I2V Flash</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-1.5">
                 <Label className="text-xs">Resolution</Label>
                 <Select value={resolution} onValueChange={setResolution}>
-                  <SelectTrigger className="bg-surface-1 text-sm h-10">
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger className="bg-surface-1 text-sm h-10"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="720p">720p (Cost-effective)</SelectItem>
                     <SelectItem value="1080p">1080p (High quality)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs">Duration</Label>
@@ -186,13 +194,10 @@ const SettingsPage = () => {
                 </div>
                 <Slider value={[duration]} onValueChange={(v) => setDuration(v[0])} min={2} max={15} step={1} />
               </div>
-
               <div className="space-y-1.5">
                 <Label className="text-xs">Shot Type</Label>
                 <Select value={shotType} onValueChange={setShotType}>
-                  <SelectTrigger className="bg-surface-1 text-sm h-10">
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger className="bg-surface-1 text-sm h-10"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="single">Single</SelectItem>
                     <SelectItem value="multi">Multi</SelectItem>
@@ -200,29 +205,60 @@ const SettingsPage = () => {
                 </Select>
                 <p className="text-[10px] text-muted-foreground">Single for one subject, Multi for multiple subjects or scene changes.</p>
               </div>
-
               <div className="space-y-1.5">
                 <Label className="text-xs">Seed</Label>
-                <Input
-                  type="number"
-                  placeholder="Random"
-                  value={seed}
-                  onChange={(e) => setSeed(e.target.value)}
-                  className="bg-surface-1 text-sm font-mono"
-                />
+                <Input type="number" placeholder="Random" value={seed} onChange={(e) => setSeed(e.target.value)} className="bg-surface-1 text-sm font-mono" />
                 <p className="text-[10px] text-muted-foreground">Leave empty for random seed each generation.</p>
               </div>
-
               <Separator className="bg-border/50" />
-
               <div className="flex items-center justify-between">
                 <Label className="text-xs">Prompt Expansion</Label>
                 <Switch checked={promptExpansion} onCheckedChange={setPromptExpansion} />
               </div>
-
               <div className="flex items-center justify-between">
                 <Label className="text-xs">Audio</Label>
                 <Switch checked={audio} onCheckedChange={setAudio} />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Image Parameters */}
+        <Card className="border-border/50">
+          <CardContent className="p-4 space-y-4">
+            <div className="flex items-center gap-2">
+              <ImageIcon className="h-4 w-4 text-primary" />
+              <h2 className="font-semibold text-sm">Image Parameters</h2>
+            </div>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Model</Label>
+                <Select value={imageModel} onValueChange={setImageModel}>
+                  <SelectTrigger className="bg-surface-1 text-sm h-10"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="alibaba/wan-2.6/image-edit">WAN 2.6 Image Edit</SelectItem>
+                    <SelectItem value="alibaba/qwen-edit-plus">Qwen Edit Plus</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Output Size</Label>
+                <Select value={imageOutputSize} onValueChange={setImageOutputSize}>
+                  <SelectTrigger className="bg-surface-1 text-sm h-10"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {IMAGE_SIZES.map((s) => (
+                      <SelectItem key={s.value} value={s.value} className="text-xs">
+                        {s.label} ({s.value.replace("*", "×")})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground">Default output dimensions for image edits.</p>
+              </div>
+              <Separator className="bg-border/50" />
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Prompt Expansion</Label>
+                <Switch checked={imagePromptExpansion} onCheckedChange={setImagePromptExpansion} />
               </div>
             </div>
           </CardContent>
@@ -242,7 +278,7 @@ const SettingsPage = () => {
               <h2 className="font-semibold text-sm">Prompt Library</h2>
             </div>
             <p className="text-xs text-muted-foreground">
-              Browse and edit built-in WAN 2.6 prompt blocks for camera, lighting, realism, and identity.
+              Browse and edit built-in prompt blocks for camera, lighting, realism, and identity.
             </p>
             <button className="w-full rounded-lg bg-surface-1 p-3 text-left text-xs text-muted-foreground transition-colors hover:bg-surface-2 active:bg-surface-3">
               Open Prompt Library →
