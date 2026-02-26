@@ -121,6 +121,16 @@ const GalleryPage = () => {
     img_scene: "Scene Edits",
     img_style: "Style & Film",
     img_enhance: "Enhancement",
+    img_skin: "Skin Quality",
+    img_hair: "Hair Quality",
+    img_eyes: "Eye Quality",
+    img_fabric: "Fabric & Clothing",
+    img_camera: "Camera Presets",
+    img_optics: "Optical Physics",
+    img_lighting_q: "Lighting Quality",
+    img_environment: "Environment & Scene",
+    img_product: "Product & Object",
+    img_post: "Post-Processing",
   };
 
   const filledSlots = slotImages.filter(Boolean) as string[];
