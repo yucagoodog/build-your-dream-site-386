@@ -477,6 +477,44 @@ export type Database = {
           },
         ]
       }
+      user_prompt_block_prefs: {
+        Row: {
+          block_id: string
+          created_at: string
+          custom_sort_order: number | null
+          hidden: boolean
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          block_id: string
+          created_at?: string
+          custom_sort_order?: number | null
+          hidden?: boolean
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          block_id?: string
+          created_at?: string
+          custom_sort_order?: number | null
+          hidden?: boolean
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_prompt_block_prefs_block_id_fkey"
+            columns: ["block_id"]
+            isOneToOne: false
+            referencedRelation: "prompt_blocks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_settings: {
         Row: {
           atlas_api_key: string | null

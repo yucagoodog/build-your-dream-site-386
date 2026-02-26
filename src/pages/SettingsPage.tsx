@@ -14,11 +14,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { IMAGE_SIZES } from "@/lib/image-sizes";
+import { PromptBlockManager } from "@/components/PromptBlockManager";
 
 const SettingsPage = () => {
   const { user, signOut } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showPromptManager, setShowPromptManager] = useState(false);
 
   // Shared
   const [apiKey, setApiKey] = useState("");
@@ -97,6 +99,16 @@ const SettingsPage = () => {
       <AppShell title="Settings">
         <div className="flex items-center justify-center pt-32">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (showPromptManager) {
+    return (
+      <AppShell title="Settings">
+        <div className="p-4 max-w-lg mx-auto">
+          <PromptBlockManager onBack={() => setShowPromptManager(false)} />
         </div>
       </AppShell>
     );
@@ -278,9 +290,12 @@ const SettingsPage = () => {
               <h2 className="font-semibold text-sm">Prompt Library</h2>
             </div>
             <p className="text-xs text-muted-foreground">
-              Browse and edit built-in prompt blocks for camera, lighting, realism, and identity.
+              Reorder and hide prompt blocks for camera, lighting, realism, and identity.
             </p>
-            <button className="w-full rounded-lg bg-surface-1 p-3 text-left text-xs text-muted-foreground transition-colors hover:bg-surface-2 active:bg-surface-3">
+            <button
+              onClick={() => setShowPromptManager(true)}
+              className="w-full rounded-lg bg-surface-1 p-3 text-left text-xs text-muted-foreground transition-colors hover:bg-surface-2 active:bg-surface-3"
+            >
               Open Prompt Library →
             </button>
           </CardContent>

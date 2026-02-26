@@ -24,6 +24,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
+import { usePromptBlockPrefs } from "@/hooks/use-prompt-block-prefs";
 
 function estimateCost(resolution: string, duration: number): number {
   const base = resolution === "1080p" ? 0.12 : 0.06;
@@ -121,7 +122,9 @@ const SceneEditorPage = () => {
     return () => clearTimeout(timer);
   }, [direction, prompt, negativePrompt, seedImageUrl, resolution, duration, seed, useRandomSeed, shotType, promptExpansion, audioEnabled]);
 
-  const blocksByCategory = promptBlocks.reduce((acc: Record<string, any[]>, block: any) => {
+  const { applyPrefs } = usePromptBlockPrefs();
+
+  const blocksByCategory = applyPrefs(promptBlocks).reduce((acc: Record<string, any[]>, block: any) => {
     if (!acc[block.category]) acc[block.category] = [];
     acc[block.category].push(block);
     return acc;

@@ -22,6 +22,7 @@ import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { IMAGE_SIZES } from "@/lib/image-sizes";
 import { formatDistanceToNow } from "date-fns";
+import { usePromptBlockPrefs } from "@/hooks/use-prompt-block-prefs";
 
 const MAX_IMAGES = 4;
 
@@ -107,7 +108,9 @@ const GalleryPage = () => {
     },
   });
 
-  const blocksByCategory = promptBlocks.reduce((acc: Record<string, any[]>, block: any) => {
+  const { applyPrefs } = usePromptBlockPrefs();
+
+  const blocksByCategory = applyPrefs(promptBlocks).reduce((acc: Record<string, any[]>, block: any) => {
     if (!acc[block.category]) acc[block.category] = [];
     acc[block.category].push(block);
     return acc;
