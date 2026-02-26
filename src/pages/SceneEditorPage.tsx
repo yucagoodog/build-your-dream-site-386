@@ -436,20 +436,25 @@ const SceneEditorPage = () => {
             )}
 
             {/* Negative prompt */}
-            <div className="space-y-1.5">
-              <Label className="text-xs">Negative Prompt</Label>
-              <Textarea value={negativePrompt} onChange={(e) => setNegativePrompt(e.target.value)}
-                className="bg-surface-1 min-h-[50px] text-sm" placeholder="What to avoid..." />
-              <div className="flex flex-wrap gap-1.5">
-                {(blocksByCategory["negative"] || []).map((block: any) => (
-                  <button key={block.id} onClick={() => toggleNegativeBlock(block.id, block.value)}
-                    className={cn("rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors",
-                      selectedBlocks.has(block.id) ? "bg-destructive/20 text-destructive" : "bg-surface-2 text-muted-foreground hover:bg-surface-3")}>
-                    {block.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <Collapsible>
+              <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 text-xs font-medium">
+                Negative Prompt
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-1.5 pt-1">
+                <Textarea value={negativePrompt} onChange={(e) => setNegativePrompt(e.target.value)}
+                  className="bg-surface-1 min-h-[50px] text-sm" placeholder="What to avoid..." />
+                <div className="flex flex-wrap gap-1.5">
+                  {(blocksByCategory["negative"] || []).map((block: any) => (
+                    <button key={block.id} onClick={() => toggleNegativeBlock(block.id, block.value)}
+                      className={cn("rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors",
+                        selectedBlocks.has(block.id) ? "bg-destructive/20 text-destructive" : "bg-surface-2 text-muted-foreground hover:bg-surface-3")}>
+                      {block.label}
+                    </button>
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
           </section>
 
           <Separator />

@@ -315,28 +315,33 @@ const GalleryPage = () => {
                 </Collapsible>
               ))}
 
-            <div className="space-y-1.5">
-              <Label className="text-xs">Negative Prompt</Label>
-              <Textarea
-                placeholder="What to avoid..."
-                value={negativePrompt}
-                onChange={(e) => setNegativePrompt(e.target.value)}
-                className="bg-surface-1 min-h-[50px]"
-              />
-              {blocksByCategory["img_negative"] && (
-                <div className="flex gap-1.5 pt-1 flex-wrap">
-                  {(blocksByCategory["img_negative"] as any[]).map((block: any) => (
-                    <button
-                      key={block.id}
-                      onClick={() => applyNegativePreset(block.value)}
-                      className="px-2.5 py-1 rounded-full text-[11px] font-medium border bg-surface-1 text-foreground border-border hover:border-primary/50 transition-colors"
-                    >
-                      {block.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <Collapsible>
+              <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 text-xs font-medium">
+                Negative Prompt
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-1.5 pt-1">
+                <Textarea
+                  placeholder="What to avoid..."
+                  value={negativePrompt}
+                  onChange={(e) => setNegativePrompt(e.target.value)}
+                  className="bg-surface-1 min-h-[50px]"
+                />
+                {blocksByCategory["img_negative"] && (
+                  <div className="flex gap-1.5 pt-1 flex-wrap">
+                    {(blocksByCategory["img_negative"] as any[]).map((block: any) => (
+                      <button
+                        key={block.id}
+                        onClick={() => applyNegativePreset(block.value)}
+                        className="px-2.5 py-1 rounded-full text-[11px] font-medium border bg-surface-1 text-foreground border-border hover:border-primary/50 transition-colors"
+                      >
+                        {block.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
           </section>
 
           <Separator />
