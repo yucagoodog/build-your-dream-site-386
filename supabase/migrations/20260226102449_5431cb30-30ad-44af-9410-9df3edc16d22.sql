@@ -1,0 +1,1 @@
+ALTER TABLE public.user_settings ADD COLUMN default_mode text NOT NULL DEFAULT 'video';
