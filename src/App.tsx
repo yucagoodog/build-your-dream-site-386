@@ -13,7 +13,6 @@ import AuthPage from "./pages/AuthPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import SceneEditorPage from "./pages/SceneEditorPage";
 import GalleryPage from "./pages/GalleryPage";
-import ImageEditorPage from "./pages/ImageEditorPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -47,7 +46,6 @@ const AppRoutes = () => (
     <Route path="/scenes/:projectId" element={<ProtectedRoute><ScenesPage /></ProtectedRoute>} />
     <Route path="/scene/:sceneId" element={<ProtectedRoute><SceneEditorPage /></ProtectedRoute>} />
     <Route path="/gallery/:projectId" element={<ProtectedRoute><GalleryPage /></ProtectedRoute>} />
-    <Route path="/image/:sourceImageId" element={<ProtectedRoute><ImageEditorPage /></ProtectedRoute>} />
     <Route path="/queue" element={<ProtectedRoute><QueuePage /></ProtectedRoute>} />
     <Route path="/review" element={<ProtectedRoute><ReviewPage /></ProtectedRoute>} />
     <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
