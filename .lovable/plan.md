@@ -1,94 +1,162 @@
 
 
-# VidForge — Phase 1 MVP Implementation Plan
+# ImgForge — Image Editing Pipeline Implementation Plan
 
-## Overview
-VidForge is a mobile-first bulk AI video production pipeline that transforms scripts into scenes, builds optimized prompts using built-in WAN 2.6 knowledge, and manages video generation via Atlas Cloud. Dark mode default, thumb-zone-optimized UI.
+## Summary
+
+Adding a complete image editing and generation flow alongside the existing video pipeline. This uses the Atlas Cloud **Image Edit** API (`alibaba/wan-2.6/image-edit` at $0.021/image) — a fundamentally different workflow from video: source images get edited via natural language prompts, with version tracking, before/after comparison, and batch capabilities.
+
+The two pipelines share the same app shell, auth, settings (API key), and prompt block infrastructure but have separate navigation sections, database tables, and editor screens.
 
 ---
 
-## Step 1: Foundation — Design System & Navigation Shell
-- Set up dark mode as default theme with status colors (gray/blue/amber/green/red/orange)
-- Build bottom navigation bar (5 tabs): Projects, Scenes, Queue, Review, Settings
-- Implement mobile-first layout shell with sticky headers, bottom sheets (not modals), and swipeable tab infrastructure
-- Configure routing for all main screens
-- 44×44px minimum tap targets, FAB component, pull-to-refresh pattern
+## Architecture Decision: Separate Navigation
 
-## Step 2: Supabase Auth & Database Schema
-- Connect Supabase with email/password authentication (login + signup screens)
-- Create all 7 tables: projects, characters, scenes, generations, image_edits, prompt_blocks, user_settings
-- Set up Row Level Security (all user-scoped via auth.uid())
-- Seed prompt_blocks table with all built-in WAN knowledge blocks (realism, camera, lighting, identity, negative prompt presets)
+The bottom nav gets a 6th tab or we replace the current 5-tab layout. Per the spec, the image pipeline wants: **Projects, Gallery, Queue, Review, Settings**. Since both pipelines share Projects and Settings, the cleanest approach is:
 
-## Step 3: Settings Screen
-- Atlas Cloud API key input (stored encrypted in user_settings)
-- Default generation parameters: model, resolution (720p/1080p), duration (2-15s), seed, shot type, prompt expansion, audio
-- Prompt Library viewer: browse/edit all built-in blocks by category
-- LLM section shown as "Connect LLM in Settings to unlock" placeholder (Phase 2)
+- Add a **mode switcher** (Video / Image) at the top of the Projects screen, or
+- Add a **Gallery** tab to the bottom nav (replacing the video-specific "Scenes" tab with a combined view)
 
-## Step 4: Projects Screen & CRUD
-- Scrollable card list: project name, status badge, scene count, cost summary, last updated
-- FAB: "+ New Project" → bottom sheet with name, description, script textarea
-- "Break Into Scenes" button (manual mode only for MVP — mark scene breaks in script)
-- Project delete with confirmation
-- Desktop: 2-3 column card grid
+I recommend: **Add a top-level toggle on the Projects page** between "Video Projects" and "Image Projects" — keeping the 5-tab nav. Gallery becomes a sub-screen of image projects (like Scenes is for video projects). Queue and Review pages get filters for video vs image items.
 
-## Step 5: Character Registry
-- Character bottom sheet accessible from Scenes screen via "Characters" chip
-- Character card: name, description, reference image upload, prompt tokens textarea, best seed, notes
-- CRUD operations for characters within a project
-- Character avatars shown on scene cards
+---
 
-## Step 6: Scenes Screen
-- Sticky header: project name + scene count + estimated cost
-- Scene cards showing: seed image thumbnail (or "Add Image" placeholder), scene number, direction excerpt, duration/resolution/cost tags, character avatars, status indicator
-- FAB: "+ Add Scene" → bottom sheet prompting for seed image first
-- Long-press context menu: Duplicate, Delete, Move
-- Drag handles for reordering scenes
-- Desktop: scene list sidebar + editor main content
+## Phase 1 Scope (Core Loop)
 
-## Step 7: Scene Editor — Tab 1: Image (Seed Image)
-- Swipeable tab strip: Image → Prompt → Params → Results
-- Top bar: Back button + "Scene X" + status + cost
-- **No image state**: Large dashed upload zone, 2×2 grid buttons (Upload, Camera, URL, Paste), warning "Seed image required"
-- **Image uploaded state**: Full-width preview, validation checklist (format, dimensions 360-2000px, file size ≤10MB, no transparency), Replace/Remove buttons
-- Audio upload (optional WAV/MP3)
-- Character assignment multi-select
-- Scene Direction textarea
+### Step 1: Database — New Tables
 
-## Step 8: Scene Editor — Tab 2: Prompt Builder
-- **Section A** (sticky): Full assembled prompt textarea with live character counter (green → amber at 1800 → red at 2000), Copy + Reset buttons
-- **Section B**: Collapsible block pickers:
-  - Camera movement chips (Static, Slow Dolly In, Track L→R, Track R→L, etc.)
-  - Motion & Realism toggle checkboxes (Standard Realism, Dynamic Energy, Calm/Slow, Full Body)
-  - Lighting & Style chips (Golden Hour, Cinematic, Documentary, Studio Soft, Film Noir, etc.)
-  - Identity blocks (auto-applied when characters assigned)
-  - Image parameter dropdowns: Shot Type, Camera Angle, Lens, Aperture, Lighting, Expression, Pose, Color, Camera Look
-  - Custom text field
-- Selecting any block immediately updates assembled prompt
-- **Section C**: Negative prompt textarea + quick-apply preset buttons (Standard, Extended, Portrait)
-- Smart assembly rules: character auto-injection, multi-shot warnings, duration-prompt alignment, speech-silence conflict detection
+Create 3 new tables via migration:
 
-## Step 9: Scene Editor — Tab 3: Parameters
-- "Use Project Defaults" toggle (dims controls when ON)
-- Controls: resolution picker (720p/1080p), duration slider (2-15s), seed input + Random toggle, shot type selector, prompt expansion toggle, audio (On/Off/Custom URL)
-- Real-time cost preview box with breakdown and silent cost comparison
-- Cost calculation based on Atlas Cloud pricing table
+**`source_images`** — uploaded images within a project
+- `id`, `project_id`, `user_id`, `image_url`, `original_filename`, `width`, `height`, `file_size`, `tags[]`, `status` (active/archived), `approved_edit_id`, `created_at`, `updated_at`
 
-## Step 10: Scene Editor — Tab 4: Results & Generation
-- "Generate This Scene" button — disabled without valid seed image + non-empty prompt, shows specific error messages
-- Edge function: generate-video (validates scene, calls Atlas Cloud I2V Flash, creates generation record)
-- Edge function: poll-generation (polls atlas_result_url every 10-15s, updates status)
-- Generation history list: inline video player, parameters used, cost per attempt
-- Actions per generation: Select as Final, Regenerate Same, New Seed, Delete
-- Status indicators: queued → submitted → processing → completed/failed
+**`image_edits`** — each edit operation on a source image (repurpose/extend existing `image_edits` table or create new `edits` table)
+- `id`, `source_image_id`, `parent_edit_id` (nullable, for chaining), `user_id`, `model`, `prompt`, `negative_prompt`, `output_size`, `seed`, `enable_prompt_expansion`, `atlas_task_id`, `atlas_result_url`, `status` (queued/processing/completed/failed), `output_image_url`, `cost`, `character_ids[]`, `error_message`, `is_final`, `created_at`, `updated_at`
 
-## Step 11: Auto-Save, Polish & UX Rules
-- Debounced auto-save on every change
-- Color-coded status dots on all scene cards and project cards
-- Cost visibility everywhere: per-scene estimates, project totals
-- Smart warnings (non-blocking): suggest more detail for long durations, seed locking after good generation, cost-saving suggestions (720p silent for drafting)
-- Offline awareness banner
-- Swipe navigation between scenes from scene editor
-- Pull-to-refresh on all list screens
+**`batch_jobs`** (placeholder for Phase 2, create schema now)
+- `id`, `project_id`, `user_id`, `prompt`, `negative_prompt`, `parameters`, `source_image_ids[]`, `total_count`, `completed_count`, `failed_count`, `total_cost`, `status`, `created_at`
+
+Add a `project_type` column to the existing `projects` table (`video` | `image`, default `video`).
+
+RLS: all tables scoped to `auth.uid() = user_id`.
+
+### Step 2: Add Image Prompt Blocks
+
+Seed the `prompt_blocks` table with image-specific blocks from the spec:
+- Photo Realism (Ultra Realism, Seed Lock, Scene Integration, Light Realism)
+- Lighting Edits (Golden Hour, Studio Soft, Dramatic Side, Blue Hour, Neon Night, Natural Window, Backlit, Overcast)
+- Subject Edits (Change Outfit, Change Background, Add Person, Remove Object, Change Expression, Age Adjust)
+- Enhancement (Sharpen Detail, Skin Retouch, Color Correct, Deepen Contrast, Add Grain)
+- Negative Presets for images (Standard, Portrait, Product)
+- Image parameter pickers (Shot Type, Camera Angle, Lens, Aperture, Lighting, Color Palette, Camera Look)
+
+These get a new category prefix like `img_` to distinguish from video blocks.
+
+### Step 3: Edge Function — `generate-image`
+
+New edge function `supabase/functions/generate-image/index.ts`:
+- **Action: `start`** — validates source image exists, retrieves API key, calls `POST https://api.atlascloud.ai/api/v1/model/generateImage` with `model`, `image`, `prompt`, `negative_prompt`, `size`, `seed`, `enable_prompt_expansion`. Creates `image_edits` record with `status: processing`.
+- **Action: `poll`** — polls `urls.result` from Atlas until `status = completed`, then stores `output_image_url`.
+- Uses same auth pattern as `generate-video`.
+
+### Step 4: Projects Page — Mode Switcher
+
+Add a segmented toggle at the top of ProjectsPage: **Video** | **Image**.
+- Filters projects by `project_type`.
+- "New Project" sheet gets a project type selector.
+- Image projects navigate to `/gallery/:projectId` instead of `/scenes/:projectId`.
+
+### Step 5: Gallery Page (`/gallery/:projectId`)
+
+New page: `src/pages/GalleryPage.tsx`
+- Sticky header: project name + image count + total cost.
+- **Image grid**: 2-col on mobile, 3-col tablet, 4-col desktop. Each thumbnail shows edit count badge.
+- **Bulk upload**: FAB "+ Upload Images" → bottom sheet with file picker (multi-select), camera, URL, paste.
+- Tap image → navigates to Image Detail screen.
+
+### Step 6: Image Detail / Edit Screen (`/image/:sourceImageId`)
+
+New page: `src/pages/ImageEditorPage.tsx`
+- **Full-width source image** preview at top.
+- **Version timeline**: horizontal scrollable row of thumbnails (original → edit 1 → edit 2...). Tap any to view full-size.
+- **Before/after swipe slider**: compare source vs any edit output.
+- **"New Edit" button** → opens Edit Bottom Sheet.
+- **"Use as Source"** button on any edit output → creates new edit with `parent_edit_id`.
+- **"Approve"** star button to mark an edit as final.
+
+### Step 7: Edit Bottom Sheet
+
+Bottom sheet containing:
+- Source image thumbnail (read-only).
+- Edit prompt textarea with character counter.
+- Block picker: collapsible sections for realism, lighting, subject, enhancement chips (reusing the same chip-toggle pattern from SceneEditorPage prompt builder).
+- Negative prompt with quick-apply presets (Standard, Portrait, Product).
+- Output size picker (recommended sizes by aspect ratio from the spec).
+- Model selector: WAN 2.6 Image Edit (default). Qwen Edit Plus as option.
+- Seed: random toggle + number input.
+- Cost display: "$0.021".
+- **"Run Edit"** primary button → calls `generate-image` edge function, then polls.
+
+### Step 8: Queue & Review Integration
+
+- **QueuePage**: query both `generations` (video) and `image_edits` (image) tables. Show type badge (Video/Image). Filter tabs.
+- **ReviewPage**: show completed image edits alongside completed video generations. Filter by type. Tap → full preview with approve/download.
+
+### Step 9: Routing
+
+Add new routes:
+```
+/gallery/:projectId  →  GalleryPage
+/image/:sourceImageId  →  ImageEditorPage
+```
+
+---
+
+## Technical Details
+
+### API Differences (Image vs Video)
+
+| | Video | Image |
+|---|---|---|
+| Endpoint | `/generateVideo` | `/generateImage` |
+| Model | `wan-2.6/image-to-video-flash` | `wan-2.6/image-edit` |
+| Key params | resolution, duration, audio, shot_type | size (W*H), enable_prompt_expansion |
+| Cost | $0.06-0.12 × duration | $0.021 flat |
+| Polling | Same pattern | Same pattern |
+
+### Recommended Output Sizes (stored as constants)
+
+```text
+1:1  → 1024×1024 (medium), 1408×1408 (high)
+3:2  → 1216×832, 1728×1152
+4:3  → 1152×896, 1664×1216
+16:9 → 1344×768, 1920×1088
+```
+
+### File Structure (new files)
+
+```text
+src/pages/GalleryPage.tsx
+src/pages/ImageEditorPage.tsx
+supabase/functions/generate-image/index.ts
+```
+
+### Shared Infrastructure
+
+- Auth, AppShell, BottomNav — unchanged (except project type filter)
+- Settings page — same API key works for both
+- Prompt blocks table — shared, differentiated by category prefix
+- Storage bucket `seed-images` — reused for source images
+
+---
+
+## Implementation Order
+
+1. Database migration (new tables + `project_type` column)
+2. Seed image prompt blocks
+3. `generate-image` edge function
+4. Projects page mode switcher
+5. Gallery page with bulk upload
+6. Image detail/editor page with edit bottom sheet + version timeline
+7. Queue & Review page updates
 
