@@ -1,12 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
-  ArrowLeft, ChevronDown, GripVertical, Eye, EyeOff,
+  ArrowLeft, ChevronDown, Eye, EyeOff,
   Loader2, Save, ArrowUp, ArrowDown,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,7 +14,6 @@ import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 const ALL_CATEGORY_LABELS: Record<string, string> = {
-  // Image categories
   img_realism: "Realism",
   img_identity: "Identity Preserve",
   img_face_swap: "Face Swap",
@@ -35,7 +32,6 @@ const ALL_CATEGORY_LABELS: Record<string, string> = {
   img_product: "Product & Object",
   img_post: "Post-Processing",
   img_negative: "Image Negatives",
-  // Video categories
   shot_type: "Shot Setup",
   camera: "Camera Movement",
   motion: "Subject Motion",
@@ -45,22 +41,17 @@ const ALL_CATEGORY_LABELS: Record<string, string> = {
   multi_shot: "Multi-Shot",
   super_prompt: "Super Prompt",
   negative: "Video Negatives",
+  template: "Templates",
 };
 
-const PIPELINE_GROUPS: Record<string, { label: string; prefix: string }> = {
-  image: { label: "Image Prompts", prefix: "img_" },
-  video: { label: "Video Prompts", prefix: "" },
-};
-
-interface BlockWithPref {
-  id: string;
-  label: string;
-  value: string;
-  category: string;
-  sort_order: number;
+interface LocalBlockPref {
   hidden: boolean;
   custom_sort_order: number | null;
-  pref_id: string | null;
+}
+
+interface LocalCatPref {
+  hidden: boolean;
+  custom_sort_order: number;
 }
 
 export function PromptBlockManager({ onBack }: { onBack: () => void }) {
@@ -68,78 +59,126 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [pipeline, setPipeline] = useState<"image" | "video">("image");
-  const [localPrefs, setLocalPrefs] = useState<Record<string, { hidden: boolean; custom_sort_order: number | null }>>({});
+  const [localBlockPrefs, setLocalBlockPrefs] = useState<Record<string, LocalBlockPref>>({});
+  const [localCatPrefs, setLocalCatPrefs] = useState<Record<string, LocalCatPref>>({});
   const [dirty, setDirty] = useState(false);
 
   const { data: blocks = [], isLoading: blocksLoading } = useQuery({
     queryKey: ["all_prompt_blocks"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("prompt_blocks")
-        .select("*")
-        .order("sort_order");
+      const { data, error } = await supabase.from("prompt_blocks").select("*").order("sort_order");
       if (error) throw error;
       return data || [];
     },
     enabled: !!user,
   });
 
-  const { data: prefs = [], isLoading: prefsLoading } = useQuery({
+  const { data: blockPrefs = [], isLoading: blockPrefsLoading } = useQuery({
     queryKey: ["user_prompt_block_prefs", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("user_prompt_block_prefs")
-        .select("*")
-        .eq("user_id", user!.id);
+      const { data, error } = await supabase.from("user_prompt_block_prefs").select("*").eq("user_id", user!.id);
       if (error) throw error;
       return data || [];
     },
     enabled: !!user,
   });
 
-  // Initialize local prefs from DB
+  const { data: catPrefs = [], isLoading: catPrefsLoading } = useQuery({
+    queryKey: ["user_prompt_category_prefs", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("user_prompt_category_prefs").select("*").eq("user_id", user!.id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  // Init local state from DB
   useEffect(() => {
-    if (prefs.length > 0) {
-      const map: Record<string, { hidden: boolean; custom_sort_order: number | null }> = {};
-      prefs.forEach((p: any) => {
+    if (blockPrefs.length > 0) {
+      const map: Record<string, LocalBlockPref> = {};
+      blockPrefs.forEach((p: any) => {
         map[p.block_id] = { hidden: p.hidden, custom_sort_order: p.custom_sort_order };
       });
-      setLocalPrefs(map);
+      setLocalBlockPrefs(map);
     }
-  }, [prefs]);
+  }, [blockPrefs]);
 
-  const isVideoCategory = (cat: string) => !cat.startsWith("img_");
+  useEffect(() => {
+    if (catPrefs.length > 0) {
+      const map: Record<string, LocalCatPref> = {};
+      catPrefs.forEach((p: any) => {
+        map[p.category] = { hidden: p.hidden, custom_sort_order: p.custom_sort_order ?? 0 };
+      });
+      setLocalCatPrefs(map);
+    }
+  }, [catPrefs]);
+
   const isImageCategory = (cat: string) => cat.startsWith("img_");
 
   const filteredBlocks = blocks.filter((b: any) =>
-    pipeline === "image" ? isImageCategory(b.category) : isVideoCategory(b.category)
+    pipeline === "image" ? isImageCategory(b.category) : !isImageCategory(b.category)
   );
 
-  const blocksByCategory = filteredBlocks.reduce((acc: Record<string, any[]>, block: any) => {
-    if (!acc[block.category]) acc[block.category] = [];
-    acc[block.category].push(block);
-    return acc;
-  }, {});
+  // Get unique categories in order
+  const allCategories = [...new Set(filteredBlocks.map((b: any) => b.category))];
 
-  // Sort blocks within each category using custom_sort_order or default
+  // Sort categories by custom order
+  const sortedCategories = [...allCategories].sort((a, b) => {
+    const aOrder = localCatPrefs[a]?.custom_sort_order ?? allCategories.indexOf(a);
+    const bOrder = localCatPrefs[b]?.custom_sort_order ?? allCategories.indexOf(b);
+    return aOrder - bOrder;
+  });
+
+  // Group blocks by category
+  const blocksByCategory: Record<string, any[]> = {};
+  filteredBlocks.forEach((block: any) => {
+    if (!blocksByCategory[block.category]) blocksByCategory[block.category] = [];
+    blocksByCategory[block.category].push(block);
+  });
+
+  // Sort blocks within categories
   Object.keys(blocksByCategory).forEach((cat) => {
     blocksByCategory[cat].sort((a: any, b: any) => {
-      const aSort = localPrefs[a.id]?.custom_sort_order ?? a.sort_order;
-      const bSort = localPrefs[b.id]?.custom_sort_order ?? b.sort_order;
+      const aSort = localBlockPrefs[a.id]?.custom_sort_order ?? a.sort_order;
+      const bSort = localBlockPrefs[b.id]?.custom_sort_order ?? b.sort_order;
       return aSort - bSort;
     });
   });
 
-  const isHidden = (blockId: string) => localPrefs[blockId]?.hidden ?? false;
+  const isBlockHidden = (blockId: string) => localBlockPrefs[blockId]?.hidden ?? false;
+  const isCatHidden = (cat: string) => localCatPrefs[cat]?.hidden ?? false;
 
-  const toggleHidden = (blockId: string) => {
-    setLocalPrefs((prev) => ({
+  const toggleBlockHidden = (blockId: string) => {
+    setLocalBlockPrefs((prev) => ({
       ...prev,
-      [blockId]: {
-        hidden: !(prev[blockId]?.hidden ?? false),
-        custom_sort_order: prev[blockId]?.custom_sort_order ?? null,
-      },
+      [blockId]: { hidden: !(prev[blockId]?.hidden ?? false), custom_sort_order: prev[blockId]?.custom_sort_order ?? null },
     }));
+    setDirty(true);
+  };
+
+  const toggleCatHidden = (cat: string) => {
+    setLocalCatPrefs((prev) => ({
+      ...prev,
+      [cat]: { hidden: !(prev[cat]?.hidden ?? false), custom_sort_order: prev[cat]?.custom_sort_order ?? sortedCategories.indexOf(cat) },
+    }));
+    setDirty(true);
+  };
+
+  const moveCat = (cat: string, direction: "up" | "down") => {
+    const idx = sortedCategories.indexOf(cat);
+    if (direction === "up" && idx <= 0) return;
+    if (direction === "down" && idx >= sortedCategories.length - 1) return;
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+
+    const newPrefs = { ...localCatPrefs };
+    sortedCategories.forEach((c, i) => {
+      let newOrder = i;
+      if (i === idx) newOrder = swapIdx;
+      else if (i === swapIdx) newOrder = idx;
+      newPrefs[c] = { hidden: newPrefs[c]?.hidden ?? false, custom_sort_order: newOrder };
+    });
+    setLocalCatPrefs(newPrefs);
     setDirty(true);
   };
 
@@ -148,21 +187,16 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
     const idx = catBlocks.findIndex((b: any) => b.id === blockId);
     if (direction === "up" && idx <= 0) return;
     if (direction === "down" && idx >= catBlocks.length - 1) return;
-
     const swapIdx = direction === "up" ? idx - 1 : idx + 1;
 
-    // Assign new sort orders
-    const newPrefs = { ...localPrefs };
+    const newPrefs = { ...localBlockPrefs };
     catBlocks.forEach((b: any, i: number) => {
       let newOrder = i;
       if (i === idx) newOrder = swapIdx;
       else if (i === swapIdx) newOrder = idx;
-      newPrefs[b.id] = {
-        hidden: newPrefs[b.id]?.hidden ?? false,
-        custom_sort_order: newOrder,
-      };
+      newPrefs[b.id] = { hidden: newPrefs[b.id]?.hidden ?? false, custom_sort_order: newOrder };
     });
-    setLocalPrefs(newPrefs);
+    setLocalBlockPrefs(newPrefs);
     setDirty(true);
   };
 
@@ -170,22 +204,26 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
     if (!user) return;
     setSaving(true);
     try {
-      // Upsert all changed prefs
-      const upserts = Object.entries(localPrefs).map(([block_id, pref]) => ({
-        user_id: user.id,
-        block_id,
-        hidden: pref.hidden,
-        custom_sort_order: pref.custom_sort_order,
+      // Save block prefs
+      const blockUpserts = Object.entries(localBlockPrefs).map(([block_id, pref]) => ({
+        user_id: user.id, block_id, hidden: pref.hidden, custom_sort_order: pref.custom_sort_order,
       }));
+      if (blockUpserts.length > 0) {
+        const { error } = await supabase.from("user_prompt_block_prefs").upsert(blockUpserts, { onConflict: "user_id,block_id" });
+        if (error) throw error;
+      }
 
-      if (upserts.length > 0) {
-        const { error } = await supabase
-          .from("user_prompt_block_prefs")
-          .upsert(upserts, { onConflict: "user_id,block_id" });
+      // Save category prefs
+      const catUpserts = Object.entries(localCatPrefs).map(([category, pref]) => ({
+        user_id: user.id, category, hidden: pref.hidden, custom_sort_order: pref.custom_sort_order,
+      }));
+      if (catUpserts.length > 0) {
+        const { error } = await supabase.from("user_prompt_category_prefs").upsert(catUpserts, { onConflict: "user_id,category" });
         if (error) throw error;
       }
 
       queryClient.invalidateQueries({ queryKey: ["user_prompt_block_prefs"] });
+      queryClient.invalidateQueries({ queryKey: ["user_prompt_category_prefs"] });
       queryClient.invalidateQueries({ queryKey: ["img_prompt_blocks"] });
       queryClient.invalidateQueries({ queryKey: ["prompt_blocks"] });
       toast({ title: "Prompt preferences saved" });
@@ -195,11 +233,11 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
     } finally {
       setSaving(false);
     }
-  }, [user, localPrefs, queryClient]);
+  }, [user, localBlockPrefs, localCatPrefs, queryClient]);
 
-  const loading = blocksLoading || prefsLoading;
-
-  const hiddenCount = Object.values(localPrefs).filter((p) => p.hidden).length;
+  const loading = blocksLoading || blockPrefsLoading || catPrefsLoading;
+  const hiddenCats = Object.values(localCatPrefs).filter((p) => p.hidden).length;
+  const hiddenBlocks = Object.values(localBlockPrefs).filter((p) => p.hidden).length;
 
   return (
     <div className="space-y-4">
@@ -211,7 +249,7 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
         <div className="flex-1">
           <h2 className="font-semibold text-sm">Prompt Library</h2>
           <p className="text-[10px] text-muted-foreground">
-            Reorder and hide prompt blocks · {hiddenCount} hidden
+            {hiddenCats} groups hidden · {hiddenBlocks} blocks hidden
           </p>
         </div>
         <Button onClick={handleSave} disabled={saving || !dirty} size="sm" className="h-8">
@@ -227,13 +265,11 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
             key={p}
             onClick={() => setPipeline(p)}
             className={cn(
-              "flex-1 rounded-md py-2 text-xs font-medium transition-colors",
-              pipeline === p
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
+              "flex-1 rounded-md py-2 text-xs font-medium transition-colors capitalize",
+              pipeline === p ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
             )}
           >
-            {PIPELINE_GROUPS[p].label}
+            {p} Prompts
           </button>
         ))}
       </div>
@@ -243,84 +279,80 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <div className="space-y-2">
-          {Object.entries(blocksByCategory).map(([category, catBlocks]) => {
-            const hiddenInCat = (catBlocks as any[]).filter((b: any) => isHidden(b.id)).length;
+        <div className="space-y-1.5">
+          {sortedCategories.map((category, catIdx) => {
+            const catBlocks = blocksByCategory[category] || [];
+            const catHidden = isCatHidden(category);
+            const hiddenInCat = catBlocks.filter((b: any) => isBlockHidden(b.id)).length;
+
             return (
-              <Collapsible key={category}>
-                <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-lg bg-surface-1 hover:bg-surface-2 transition-colors">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium">
-                      {ALL_CATEGORY_LABELS[category] || category}
-                    </span>
-                    <Badge variant="secondary" className="text-[10px] h-5">
-                      {(catBlocks as any[]).length}
-                    </Badge>
-                    {hiddenInCat > 0 && (
-                      <Badge variant="outline" className="text-[10px] h-5 text-muted-foreground">
-                        {hiddenInCat} hidden
-                      </Badge>
-                    )}
+              <div key={category} className={cn(catHidden && "opacity-40")}>
+                {/* Category row */}
+                <div className="flex items-center gap-1.5 rounded-lg bg-surface-1 px-2 py-1.5">
+                  {/* Reorder category */}
+                  <div className="flex flex-col gap-0.5">
+                    <button onClick={() => moveCat(category, "up")} disabled={catIdx === 0}
+                      className="h-4 w-4 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-20">
+                      <ArrowUp className="h-3 w-3" />
+                    </button>
+                    <button onClick={() => moveCat(category, "down")} disabled={catIdx === sortedCategories.length - 1}
+                      className="h-4 w-4 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-20">
+                      <ArrowDown className="h-3 w-3" />
+                    </button>
                   </div>
-                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <div className="mt-1 space-y-0.5">
-                    {(catBlocks as any[]).map((block: any, idx: number) => (
-                      <div
-                        key={block.id}
-                        className={cn(
-                          "flex items-center gap-2 px-3 py-2 rounded-md transition-colors",
-                          isHidden(block.id)
-                            ? "bg-muted/30 opacity-50"
-                            : "bg-background hover:bg-surface-1"
+
+                  {/* Category expand */}
+                  <Collapsible className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <CollapsibleTrigger className="flex items-center gap-2 flex-1 py-1">
+                        <span className="text-xs font-medium">{ALL_CATEGORY_LABELS[category] || category}</span>
+                        <Badge variant="secondary" className="text-[10px] h-5">{catBlocks.length}</Badge>
+                        {hiddenInCat > 0 && (
+                          <Badge variant="outline" className="text-[10px] h-5 text-muted-foreground">{hiddenInCat} hidden</Badge>
                         )}
-                      >
-                        {/* Reorder buttons */}
-                        <div className="flex flex-col gap-0.5">
-                          <button
-                            onClick={() => moveBlock(category, block.id, "up")}
-                            disabled={idx === 0}
-                            className="h-4 w-4 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-20 transition-colors"
-                          >
-                            <ArrowUp className="h-3 w-3" />
-                          </button>
-                          <button
-                            onClick={() => moveBlock(category, block.id, "down")}
-                            disabled={idx === (catBlocks as any[]).length - 1}
-                            className="h-4 w-4 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-20 transition-colors"
-                          >
-                            <ArrowDown className="h-3 w-3" />
-                          </button>
-                        </div>
+                        <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                      </CollapsibleTrigger>
 
-                        {/* Block info */}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium truncate">{block.label}</p>
-                          <p className="text-[10px] text-muted-foreground truncate">{block.value}</p>
-                        </div>
+                      {/* Hide category toggle */}
+                      <button onClick={() => toggleCatHidden(category)}
+                        className={cn("h-7 w-7 flex items-center justify-center rounded-md transition-colors shrink-0",
+                          catHidden ? "text-muted-foreground hover:text-foreground" : "text-foreground hover:text-muted-foreground")}>
+                        {catHidden ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
 
-                        {/* Hide toggle */}
-                        <button
-                          onClick={() => toggleHidden(block.id)}
-                          className={cn(
-                            "h-7 w-7 flex items-center justify-center rounded-md transition-colors",
-                            isHidden(block.id)
-                              ? "text-muted-foreground hover:text-foreground"
-                              : "text-foreground hover:text-muted-foreground"
-                          )}
-                        >
-                          {isHidden(block.id) ? (
-                            <EyeOff className="h-3.5 w-3.5" />
-                          ) : (
-                            <Eye className="h-3.5 w-3.5" />
-                          )}
-                        </button>
+                    <CollapsibleContent>
+                      <div className="mt-1 space-y-0.5 pl-1">
+                        {catBlocks.map((block: any, idx: number) => (
+                          <div key={block.id}
+                            className={cn("flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors",
+                              isBlockHidden(block.id) ? "bg-muted/30 opacity-50" : "bg-background hover:bg-surface-1")}>
+                            <div className="flex flex-col gap-0.5">
+                              <button onClick={() => moveBlock(category, block.id, "up")} disabled={idx === 0}
+                                className="h-3.5 w-3.5 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-20">
+                                <ArrowUp className="h-2.5 w-2.5" />
+                              </button>
+                              <button onClick={() => moveBlock(category, block.id, "down")} disabled={idx === catBlocks.length - 1}
+                                className="h-3.5 w-3.5 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-20">
+                                <ArrowDown className="h-2.5 w-2.5" />
+                              </button>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[11px] font-medium truncate">{block.label}</p>
+                              <p className="text-[10px] text-muted-foreground truncate">{block.value}</p>
+                            </div>
+                            <button onClick={() => toggleBlockHidden(block.id)}
+                              className={cn("h-6 w-6 flex items-center justify-center rounded-md transition-colors shrink-0",
+                                isBlockHidden(block.id) ? "text-muted-foreground hover:text-foreground" : "text-foreground hover:text-muted-foreground")}>
+                              {isBlockHidden(block.id) ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                            </button>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </div>
+              </div>
             );
           })}
         </div>

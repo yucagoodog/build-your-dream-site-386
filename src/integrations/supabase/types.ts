@@ -515,6 +515,33 @@ export type Database = {
           },
         ]
       }
+      user_prompt_category_prefs: {
+        Row: {
+          category: string
+          created_at: string
+          custom_sort_order: number | null
+          hidden: boolean
+          id: string
+          user_id: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          custom_sort_order?: number | null
+          hidden?: boolean
+          id?: string
+          user_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          custom_sort_order?: number | null
+          hidden?: boolean
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_settings: {
         Row: {
           atlas_api_key: string | null
