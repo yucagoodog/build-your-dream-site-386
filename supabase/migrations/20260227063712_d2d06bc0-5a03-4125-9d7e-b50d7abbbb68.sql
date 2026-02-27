@@ -1,0 +1,1 @@
+ALTER TABLE public.image_edits ADD COLUMN project_id uuid REFERENCES public.projects(id) DEFAULT NULL;

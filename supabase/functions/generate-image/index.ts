@@ -42,6 +42,7 @@ Deno.serve(async (req) => {
       const {
         image_urls, prompt, negative_prompt, output_size,
         seed, enable_prompt_expansion, model, source_image_id, parent_edit_id,
+        project_id,
       } = body;
 
       const urls: string[] = image_urls || [];
@@ -136,6 +137,7 @@ Deno.serve(async (req) => {
         .insert({
           source_image_id: source_image_id || null,
           parent_edit_id: parent_edit_id || null,
+          project_id: project_id || null,
           user_id: user.id,
           model: model || "wan-2.6-image-edit",
           prompt: prompt || "",
