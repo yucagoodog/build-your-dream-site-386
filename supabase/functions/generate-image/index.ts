@@ -92,8 +92,7 @@ Deno.serve(async (req) => {
       }
 
       // Call Atlas Cloud Image Edit API
-      // The API accepts `image` — for multiple images we pass the first one as primary
-      // and additional images via the array (API may accept comma-separated or array)
+      console.log("Sending to Atlas Cloud:", JSON.stringify({ model, images: urls, prompt, size: output_size }));
       const generateRes = await fetch(
         "https://api.atlascloud.ai/api/v1/model/generateImage",
         {
@@ -110,6 +109,7 @@ Deno.serve(async (req) => {
             size: output_size || "1280*1280",
             seed: seed ?? -1,
             enable_prompt_expansion: enable_prompt_expansion ?? true,
+            enable_interleave: false,
           }),
         }
       );
