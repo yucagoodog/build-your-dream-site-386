@@ -104,10 +104,10 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             model: model || "alibaba/wan-2.6/image-edit",
-            image: urls.length === 1 ? urls[0] : urls,
+            images: urls,
             prompt: prompt || "",
             negative_prompt: negative_prompt || "",
-            size: output_size || "1024*1024",
+            size: output_size || "1280*1280",
             seed: seed ?? -1,
             enable_prompt_expansion: enable_prompt_expansion ?? true,
           }),
