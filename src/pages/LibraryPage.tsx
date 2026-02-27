@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Download, Search, Copy, Trash2, Clock, DollarSign,
-  AlertCircle, Sparkles, Loader2, Filter, ImageIcon, Clapperboard, Play,
+  AlertCircle, Sparkles, Loader2, Filter, ImageIcon, Clapperboard, Play, RotateCcw,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -178,6 +178,66 @@ const LibraryPage = () => {
     toast({ title: "Parameters copied to clipboard" });
   };
 
+  const handleReEdit = async (item: LibraryItem) => {
+    if (item.type === "video") {
+      if (item.scene_id) {
+        navigate(`/scene/${item.scene_id}`);
+      } else {
+        toast({ title: "No linked scene found", variant: "destructive" });
+      }
+      return;
+    }
+
+    // For image, start a new generation with the same params & source images
+    const imageUrls = item.source_image_urls?.length ? item.source_image_urls : item.output_image_url ? [item.output_image_url] : [];
+    if (!imageUrls.length) {
+      toast({ title: "No source images to re-edit", variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Starting re-edit..." });
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-image", {
+        body: {
+          action: "start",
+          project_id: item.project_id,
+          image_urls: imageUrls,
+          prompt: item.prompt || "",
+          negative_prompt: item.negative_prompt || "",
+          output_size: item.output_size || "1024*1024",
+          seed: item.seed ?? -1,
+          enable_prompt_expansion: item.enable_prompt_expansion ?? true,
+          model: item.model,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast({ title: "Re-edit started", description: "Polling for results..." });
+      const editId = data.edit.id;
+      const poll = setInterval(async () => {
+        try {
+          const { data: pollData } = await supabase.functions.invoke("generate-image", {
+            body: { action: "poll", edit_id: editId },
+          });
+          if (pollData?.status === "completed") {
+            clearInterval(poll);
+            queryClient.invalidateQueries({ queryKey: ["library_image_edits"] });
+            toast({ title: "Re-edit completed!" });
+          } else if (pollData?.status === "failed") {
+            clearInterval(poll);
+            queryClient.invalidateQueries({ queryKey: ["library_image_edits"] });
+            toast({ title: "Re-edit failed", description: pollData.error, variant: "destructive" });
+          }
+        } catch {
+          clearInterval(poll);
+        }
+      }, 4000);
+    } catch (err: any) {
+      toast({ title: "Re-edit failed", description: err.message, variant: "destructive" });
+    }
+  };
+
   const handleDelete = async (item: LibraryItem) => {
     const table = item.type === "image" ? "image_edits" : "generations";
     const { error } = await supabase.from(table).delete().eq("id", item.id);
@@ -295,6 +355,7 @@ const LibraryPage = () => {
                 item={item}
                 projectName={item.project_id ? projectMap.get(item.project_id) || null : null}
                 onCopyParams={() => handleCopyParams(item)}
+                onReEdit={() => handleReEdit(item)}
                 onDelete={() => handleDelete(item)}
                 onNavigateProject={() => {
                   if (item.type === "image" && item.project_id) navigate(`/gallery/${item.project_id}`);
@@ -312,12 +373,14 @@ function LibraryCard({
   item,
   projectName,
   onCopyParams,
+  onReEdit,
   onDelete,
   onNavigateProject,
 }: {
   item: LibraryItem;
   projectName: string | null;
   onCopyParams: () => void;
+  onReEdit: () => void;
   onDelete: () => void;
   onNavigateProject: () => void;
 }) {
@@ -468,7 +531,10 @@ function LibraryCard({
             )}
 
             {/* Actions */}
-            <div className="flex gap-1.5 pt-1">
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={onReEdit}>
+                <RotateCcw className="h-3 w-3" /> Re-edit
+              </Button>
               <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={onCopyParams}>
                 <Copy className="h-3 w-3" /> Copy Params
               </Button>
