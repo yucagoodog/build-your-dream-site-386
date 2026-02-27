@@ -407,10 +407,10 @@ function LibraryCard({
 
             {/* Prompt */}
             {item.prompt && (
-              <p className="text-xs text-foreground line-clamp-2">{item.prompt}</p>
+              <p className="text-xs text-foreground whitespace-pre-wrap break-words">{item.prompt}</p>
             )}
             {item.negative_prompt && (
-              <p className="text-[11px] text-muted-foreground line-clamp-1">
+              <p className="text-[11px] text-muted-foreground whitespace-pre-wrap break-words">
                 <span className="font-medium">Neg:</span> {item.negative_prompt}
               </p>
             )}
@@ -463,7 +463,7 @@ function LibraryCard({
             {item.status === "failed" && item.error_message && (
               <div className="flex items-start gap-1.5 text-[11px] text-destructive">
                 <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                <span className="line-clamp-2">{item.error_message}</span>
+                <span className="whitespace-pre-wrap break-words">{item.error_message}</span>
               </div>
             )}
 
