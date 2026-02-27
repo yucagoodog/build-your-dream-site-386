@@ -19,6 +19,7 @@ import {
   Download, Clock, DollarSign, CheckCircle2, XCircle, Video,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { downloadFile } from "@/lib/download";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
@@ -593,16 +594,7 @@ function VideoGenCard({ gen, sceneId }: { gen: any; sceneId: string }) {
         {gen.video_url && (
           <div className="space-y-2">
             <video src={gen.video_url} controls className="w-full rounded-lg" preload="metadata" />
-            <Button variant="outline" size="sm" className="w-full gap-2" onClick={() => {
-              const link = document.createElement("a");
-              link.href = gen.video_url!;
-              link.download = `scene-${sceneId.slice(0, 6)}-gen-${gen.id.slice(0, 6)}.mp4`;
-              link.target = "_blank";
-              link.rel = "noopener noreferrer";
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-            }}>
+            <Button variant="outline" size="sm" className="w-full gap-2" onClick={() => downloadFile(gen.video_url!, `scene-${sceneId.slice(0, 6)}-gen-${gen.id.slice(0, 6)}.mp4`)}>
               <Download className="h-4 w-4" /> Download
             </Button>
           </div>

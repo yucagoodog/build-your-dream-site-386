@@ -15,6 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { downloadFile } from "@/lib/download";
 import { formatDistanceToNow } from "date-fns";
 
 type LibraryItem = {
@@ -586,17 +587,13 @@ function LibraryCard({
                 </Button>
               )}
               {item.type === "image" && item.output_image_url && (
-                <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" asChild>
-                  <a href={item.output_image_url} download target="_blank" rel="noopener noreferrer">
-                    <Download className="h-3 w-3" /> Download
-                  </a>
+                <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={() => downloadFile(item.output_image_url!, `image-${item.id.slice(0,8)}.png`)}>
+                  <Download className="h-3 w-3" /> Download
                 </Button>
               )}
               {item.type === "video" && item.video_url && (
-                <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" asChild>
-                  <a href={item.video_url} download target="_blank" rel="noopener noreferrer">
-                    <Download className="h-3 w-3" /> Download
-                  </a>
+                <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={() => downloadFile(item.video_url!, `video-${item.id.slice(0,8)}.mp4`)}>
+                  <Download className="h-3 w-3" /> Download
                 </Button>
               )}
               <Button

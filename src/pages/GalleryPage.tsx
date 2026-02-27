@@ -20,6 +20,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { downloadFile } from "@/lib/download";
 import { IMAGE_SIZES } from "@/lib/image-sizes";
 import { formatDistanceToNow } from "date-fns";
 import { usePromptBlockPrefs } from "@/hooks/use-prompt-block-prefs";
@@ -520,12 +521,12 @@ function GenerationCard({ gen }: { gen: any }) {
         {gen.output_image_url && (
           <div className="relative rounded-lg overflow-hidden bg-muted">
             <img src={gen.output_image_url} alt="Output" className="w-full" loading="lazy" />
-            <a
-              href={gen.output_image_url} download target="_blank" rel="noopener noreferrer"
+            <button
+              onClick={() => downloadFile(gen.output_image_url!, `gallery-${gen.id.slice(0,8)}.png`)}
               className="absolute bottom-2 right-2 h-8 w-8 rounded-full bg-background/80 backdrop-blur flex items-center justify-center text-foreground hover:bg-background transition-colors"
             >
               <Download className="h-4 w-4" />
-            </a>
+            </button>
           </div>
         )}
 
