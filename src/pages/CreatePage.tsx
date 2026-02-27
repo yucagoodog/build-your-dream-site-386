@@ -32,8 +32,13 @@ type Mode = "image" | "video" | "upscale";
 
 const MAX_IMAGES = 4;
 
-function estimateCost(resolution: string, duration: number): number {
-  return (resolution === "1080p" ? 0.12 : 0.06) * duration;
+// Atlas Cloud pricing (per-second for video, flat for image/upscale)
+// Video Flash: $0.06/s (720p), $0.12/s (1080p) — based on observed billing
+// Image Edit: $0.021 flat per run (regardless of image count)
+// Upscale: $0.01 flat per run
+function estimateVideoCost(resolution: string, duration: number): number {
+  const perSecond = resolution === "1080p" ? 0.12 : 0.06;
+  return perSecond * duration;
 }
 
 const CreatePage = () => {
@@ -410,8 +415,8 @@ const CreatePage = () => {
     else handleGenerateUpscale();
   };
 
-  const imgCost = 0.021 * filledSlots.length;
-  const vidCost = estimateCost(resolution, duration);
+  const imgCost = 0.021;
+  const vidCost = estimateVideoCost(resolution, duration);
   const canGenerate = mode === "image" ? filledSlots.length > 0 && prompt.trim().length > 0
     : mode === "video" ? !!seedImageUrl && prompt.trim().length > 0
     : !!upscaleImageUrl;
