@@ -24,6 +24,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { downloadFile } from "@/lib/download";
 import { IMAGE_SIZES } from "@/lib/image-sizes";
 import { formatDistanceToNow } from "date-fns";
 import { usePromptBlockPrefs } from "@/hooks/use-prompt-block-prefs";
@@ -859,10 +860,10 @@ function ResultCard({ item, mode }: { item: any; mode: Mode }) {
         {!isVideo && item.output_image_url && (
           <div className="relative rounded-lg overflow-hidden bg-muted">
             <img src={item.output_image_url} alt="Output" className="w-full" loading="lazy" />
-            <a href={item.output_image_url} download target="_blank" rel="noopener noreferrer"
+            <button onClick={() => downloadFile(item.output_image_url!, `image-${item.id.slice(0,8)}.png`)}
               className="absolute bottom-2 right-2 h-8 w-8 rounded-full bg-background/80 backdrop-blur flex items-center justify-center text-foreground hover:bg-background">
               <Download className="h-4 w-4" />
-            </a>
+            </button>
           </div>
         )}
 

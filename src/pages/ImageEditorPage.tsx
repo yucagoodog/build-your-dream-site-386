@@ -13,6 +13,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { ArrowLeft, Loader2, Star, ChevronDown, Sparkles, Play } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { downloadFile } from "@/lib/download";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
@@ -262,10 +263,8 @@ const ImageEditorPage = () => {
                     <Button size="sm" variant="outline" onClick={() => handleUseAsSource(selectedEdit.id)}>
                       <Sparkles className="h-3.5 w-3.5" /> Use as Source
                     </Button>
-                    <Button size="sm" variant="outline" asChild>
-                      <a href={selectedEdit.output_image_url} download target="_blank" rel="noopener noreferrer">
-                        Download
-                      </a>
+                    <Button size="sm" variant="outline" onClick={() => downloadFile(selectedEdit.output_image_url!, `edit-${selectedEdit.id.slice(0,8)}.png`)}>
+                      Download
                     </Button>
                   </>
                 )}
