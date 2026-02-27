@@ -1,10 +1,11 @@
-import { FolderOpen, Clapperboard, ListOrdered, PlayCircle, Settings } from "lucide-react";
+import { FolderOpen, Clapperboard, ListOrdered, PlayCircle, Settings, Library } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocation, useNavigate } from "react-router-dom";
 
 const tabs = [
   { path: "/", label: "Projects", icon: FolderOpen },
   { path: "/scenes", label: "Scenes", icon: Clapperboard },
+  { path: "/library", label: "Library", icon: Library },
   { path: "/queue", label: "Queue", icon: ListOrdered },
   { path: "/review", label: "Review", icon: PlayCircle },
   { path: "/settings", label: "Settings", icon: Settings },
