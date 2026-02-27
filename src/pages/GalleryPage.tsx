@@ -39,7 +39,7 @@ const GalleryPage = () => {
 
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
-  const [outputSize, setOutputSize] = useState("1024*1024");
+  const [outputSize, setOutputSize] = useState("1280*1280");
   const [model, setModel] = useState("alibaba/wan-2.6/image-edit");
   const [seed, setSeed] = useState("");
   const [useRandomSeed, setUseRandomSeed] = useState(true);
@@ -66,7 +66,10 @@ const GalleryPage = () => {
     if (userDefaults && !defaultsLoaded) {
       const d = userDefaults as any;
       if (d.default_image_model) setModel(d.default_image_model);
-      if (d.default_image_output_size) setOutputSize(d.default_image_output_size);
+      if (d.default_image_output_size) {
+        const valid = IMAGE_SIZES.some((s) => s.value === d.default_image_output_size);
+        setOutputSize(valid ? d.default_image_output_size : "1280*1280");
+      }
       if (d.default_image_prompt_expansion !== undefined) setPromptExpansion(d.default_image_prompt_expansion);
       setDefaultsLoaded(true);
     }
