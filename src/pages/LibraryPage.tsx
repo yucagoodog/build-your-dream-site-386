@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Download, Search, Copy, Trash2, Clock, DollarSign,
-  AlertCircle, Sparkles, Loader2, Filter, ImageIcon, Clapperboard, Play, RotateCcw,
+  AlertCircle, Sparkles, Loader2, Filter, ImageIcon, Clapperboard, Play, RotateCcw, ZoomIn,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -209,6 +209,64 @@ const LibraryPage = () => {
     });
   };
 
+  const [upscaling, setUpscaling] = useState<Set<string>>(new Set());
+
+  const handleUpscale = async (item: LibraryItem) => {
+    const imageUrl = item.output_image_url;
+    if (!imageUrl) {
+      toast({ title: "No output image to upscale", variant: "destructive" });
+      return;
+    }
+
+    setUpscaling((prev) => new Set(prev).add(item.id));
+    toast({ title: "Starting upscale…" });
+
+    try {
+      const { data: startData, error: startError } = await supabase.functions.invoke("upscale-image", {
+        body: {
+          action: "start",
+          image_url: imageUrl,
+          target_resolution: "4k",
+          creativity: 2,
+          source_edit_id: item.id,
+          project_id: item.project_id,
+        },
+      });
+
+      if (startError || startData?.error) {
+        toast({ title: "Upscale failed", description: startData?.error || startError?.message, variant: "destructive" });
+        setUpscaling((prev) => { const n = new Set(prev); n.delete(item.id); return n; });
+        return;
+      }
+
+      const editId = startData.edit.id;
+
+      // Poll
+      const poll = async () => {
+        for (let i = 0; i < 60; i++) {
+          await new Promise((r) => setTimeout(r, 4000));
+          const { data } = await supabase.functions.invoke("upscale-image", {
+            body: { action: "poll", edit_id: editId },
+          });
+          if (data?.status === "completed") {
+            toast({ title: "Upscale complete!" });
+            queryClient.invalidateQueries({ queryKey: ["library_image_edits"] });
+            break;
+          }
+          if (data?.status === "failed") {
+            toast({ title: "Upscale failed", description: data.error, variant: "destructive" });
+            break;
+          }
+        }
+        setUpscaling((prev) => { const n = new Set(prev); n.delete(item.id); return n; });
+      };
+      poll();
+    } catch (err: any) {
+      toast({ title: "Upscale error", description: err.message, variant: "destructive" });
+      setUpscaling((prev) => { const n = new Set(prev); n.delete(item.id); return n; });
+    }
+  };
+
   const handleDelete = async (item: LibraryItem) => {
     const table = item.type === "image" ? "image_edits" : "generations";
     const { error } = await supabase.from(table).delete().eq("id", item.id);
@@ -327,6 +385,8 @@ const LibraryPage = () => {
                 projectName={item.project_id ? projectMap.get(item.project_id) || null : null}
                 onCopyParams={() => handleCopyParams(item)}
                 onReEdit={() => handleReEdit(item)}
+                onUpscale={() => handleUpscale(item)}
+                isUpscaling={upscaling.has(item.id)}
                 onDelete={() => handleDelete(item)}
                 onNavigateProject={() => {
                   if (item.type === "image" && item.project_id) navigate(`/gallery/${item.project_id}`);
@@ -345,6 +405,8 @@ function LibraryCard({
   projectName,
   onCopyParams,
   onReEdit,
+  onUpscale,
+  isUpscaling,
   onDelete,
   onNavigateProject,
 }: {
@@ -352,6 +414,8 @@ function LibraryCard({
   projectName: string | null;
   onCopyParams: () => void;
   onReEdit: () => void;
+  onUpscale: () => void;
+  isUpscaling: boolean;
   onDelete: () => void;
   onNavigateProject: () => void;
 }) {
@@ -509,6 +573,12 @@ function LibraryCard({
               <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={onCopyParams}>
                 <Copy className="h-3 w-3" /> Copy Params
               </Button>
+              {item.type === "image" && item.status === "completed" && item.output_image_url && item.model !== "atlascloud/image-upscaler" && (
+                <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={onUpscale} disabled={isUpscaling}>
+                  {isUpscaling ? <Loader2 className="h-3 w-3 animate-spin" /> : <ZoomIn className="h-3 w-3" />}
+                  {isUpscaling ? "Upscaling…" : "Upscale 4K"}
+                </Button>
+              )}
               {item.type === "image" && item.output_image_url && (
                 <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" asChild>
                   <a href={item.output_image_url} download target="_blank" rel="noopener noreferrer">
