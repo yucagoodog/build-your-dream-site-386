@@ -167,21 +167,28 @@ function CustomPromptCreator({ userId, pipeline, onCreated }: { userId: string; 
   const [label, setLabel] = useState("");
   const [value, setValue] = useState("");
   const [category, setCategory] = useState("");
+  const [customCategory, setCustomCategory] = useState("");
   const [saving, setSaving] = useState(false);
 
   const imgCategories = ["img_realism", "img_identity", "img_lighting", "img_scene", "img_style", "img_enhance", "img_skin", "img_hair", "img_eyes", "img_camera", "img_post", "img_negative"];
-  const vidCategories = ["shot_setup", "camera", "motion", "style", "identity", "negative", "super_prompt"];
+  const vidCategories = ["shot_setup", "camera", "motion", "style", "identity", "negative", "super_prompt", "template"];
   const categories = pipeline === "image" ? imgCategories : vidCategories;
 
+  const resolvedCategory = category === "__custom__" ? customCategory.trim().toLowerCase().replace(/\s+/g, "_") : category;
+
   const handleCreate = async () => {
-    if (!label.trim() || !value.trim() || !category) return;
+    if (!label.trim() || !value.trim() || !resolvedCategory) return;
     setSaving(true);
+    // If custom category, also register its label
+    if (category === "__custom__" && customCategory.trim()) {
+      ALL_CATEGORY_LABELS[resolvedCategory] = customCategory.trim();
+    }
     const { error } = await supabase.from("prompt_blocks").insert({
-      label: label.trim(), value: value.trim(), category,
+      label: label.trim(), value: value.trim(), category: resolvedCategory,
       user_id: userId, is_builtin: false, sort_order: 999,
     });
     if (error) { toast({ title: "Failed", description: error.message, variant: "destructive" }); }
-    else { toast({ title: "Custom prompt created" }); onCreated(); setOpen(false); setLabel(""); setValue(""); setCategory(""); }
+    else { toast({ title: "Custom prompt created" }); onCreated(); setOpen(false); setLabel(""); setValue(""); setCategory(""); setCustomCategory(""); }
     setSaving(false);
   };
 
@@ -197,12 +204,21 @@ function CustomPromptCreator({ userId, pipeline, onCreated }: { userId: string; 
           <div className="space-y-1"><Label className="text-xs">Prompt Text</Label><Textarea placeholder="The actual prompt text to insert..." value={value} onChange={(e) => setValue(e.target.value)} className="bg-surface-1 min-h-[60px] text-sm" /></div>
           <div className="space-y-1">
             <Label className="text-xs">Category</Label>
-            <Select value={category} onValueChange={setCategory}>
+            <Select value={category} onValueChange={(v) => { setCategory(v); if (v !== "__custom__") setCustomCategory(""); }}>
               <SelectTrigger className="bg-surface-1 text-xs h-9"><SelectValue placeholder="Select category" /></SelectTrigger>
-              <SelectContent>{categories.map((c) => <SelectItem key={c} value={c} className="text-xs">{ALL_CATEGORY_LABELS[c] || c}</SelectItem>)}</SelectContent>
+              <SelectContent>
+                {categories.map((c) => <SelectItem key={c} value={c} className="text-xs">{ALL_CATEGORY_LABELS[c] || c}</SelectItem>)}
+                <SelectItem value="__custom__" className="text-xs font-medium">+ New Category…</SelectItem>
+              </SelectContent>
             </Select>
           </div>
-          <Button onClick={handleCreate} disabled={saving || !label.trim() || !value.trim() || !category} className="w-full">
+          {category === "__custom__" && (
+            <div className="space-y-1">
+              <Label className="text-xs">Category Name</Label>
+              <Input placeholder="e.g. My Templates" value={customCategory} onChange={(e) => setCustomCategory(e.target.value)} className="bg-surface-1 text-sm" />
+            </div>
+          )}
+          <Button onClick={handleCreate} disabled={saving || !label.trim() || !value.trim() || !resolvedCategory} className="w-full">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Create
           </Button>
         </div>
