@@ -16,8 +16,9 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   X, Loader2, ChevronDown, Sparkles, Play, ImagePlus, Download,
   Clock, DollarSign, AlertCircle, Upload, Clipboard,
-  Image as ImageIcon, Clapperboard, ZoomIn, Copy, RotateCcw,
+  Image as ImageIcon, Clapperboard, ZoomIn, Copy, RotateCcw, FolderOpen,
 } from "lucide-react";
+import { SeedImageDrive } from "@/components/SeedImageDrive";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -193,12 +194,12 @@ const CreatePage = () => {
       .filter((k) => (vidBlocksByCategory[k] || []).length > 0)
   );
 
-  // Recent results
+  // Recent results — only last 1 per mode
   const { data: recentImages = [] } = useQuery({
     queryKey: ["recent_images", user?.id],
     queryFn: async () => {
       const { data } = await supabase.from("image_edits").select("*").eq("user_id", user!.id)
-        .order("created_at", { ascending: false }).limit(20);
+        .order("created_at", { ascending: false }).limit(1);
       return data || [];
     },
     enabled: !!user && (mode === "image" || mode === "upscale"),
@@ -209,7 +210,7 @@ const CreatePage = () => {
     queryKey: ["recent_videos", user?.id],
     queryFn: async () => {
       const { data } = await supabase.from("generations").select("*").eq("user_id", user!.id)
-        .order("created_at", { ascending: false }).limit(20);
+        .order("created_at", { ascending: false }).limit(1);
       return data || [];
     },
     enabled: !!user && mode === "video",
@@ -439,9 +440,14 @@ const CreatePage = () => {
           {mode === "image" && (
             <>
               <section>
-                <Label className="text-xs text-muted-foreground mb-2 block">
-                  Source Images ({filledSlots.length}/{MAX_IMAGES})
-                </Label>
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-xs text-muted-foreground">Source Images ({filledSlots.length}/{MAX_IMAGES})</Label>
+                  <SeedImageDrive onSelect={(url) => {
+                    const emptyIdx = slotImages.findIndex((s) => !s);
+                    if (emptyIdx !== -1) setSlotImages((prev) => { const n = [...prev]; n[emptyIdx] = url; return n; });
+                    else toast({ title: "All slots full" });
+                  }} />
+                </div>
                 <div className="grid grid-cols-2 gap-2 lg:gap-3">
                   {slotImages.map((url, i) => (
                     <div key={i} className={cn("relative aspect-[4/3] lg:aspect-square rounded-lg border-2 border-dashed transition-all overflow-hidden group",
@@ -508,7 +514,10 @@ const CreatePage = () => {
           {mode === "video" && (
             <>
               <section>
-                <Label className="text-xs text-muted-foreground mb-2 block">Seed Image</Label>
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-xs text-muted-foreground">Seed Image</Label>
+                  {!seedImageUrl && <SeedImageDrive onSelect={setSeedImageUrl} />}
+                </div>
                 {seedImageUrl ? (
                   <div className="relative rounded-xl overflow-hidden bg-muted group">
                     <img src={seedImageUrl} alt="Seed" className="w-full aspect-video object-cover" />
@@ -587,7 +596,10 @@ const CreatePage = () => {
           {mode === "upscale" && (
             <>
               <section>
-                <Label className="text-xs text-muted-foreground mb-2 block">Image to Upscale</Label>
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-xs text-muted-foreground">Image to Upscale</Label>
+                  {!upscaleImageUrl && <SeedImageDrive onSelect={setUpscaleImageUrl} />}
+                </div>
                 {upscaleImageUrl ? (
                   <div className="relative rounded-xl overflow-hidden bg-muted group">
                     <img src={upscaleImageUrl} alt="Upscale source" className="w-full aspect-square object-cover" />
@@ -630,7 +642,7 @@ const CreatePage = () => {
         <div className="p-4 lg:p-6 lg:overflow-y-auto lg:max-h-[calc(100vh-3.5rem)]">
           <Separator className="lg:hidden mb-5" />
           <h2 className="text-xs font-medium text-muted-foreground mb-3">
-            Recent {mode === "video" ? "Videos" : mode === "upscale" ? "Upscales" : "Images"} ({recentResults.length})
+            Last {mode === "video" ? "Video" : mode === "upscale" ? "Upscale" : "Image"}
           </h2>
           {recentResults.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">

@@ -1,10 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
   ArrowLeft, ChevronDown, Eye, EyeOff, GripVertical,
-  Loader2, Save,
+  Loader2, Save, Plus, Trash2, Pencil,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -42,13 +47,14 @@ interface LocalCatPref { hidden: boolean; custom_sort_order: number; }
 /* ── Sortable Category Row ── */
 function SortableCategoryRow({
   category, catBlocks, catIdx, totalCats, isCatHidden, isBlockHidden,
-  toggleCatHidden, toggleBlockHidden, moveBlock,
+  toggleCatHidden, toggleBlockHidden, moveBlock, onDeleteBlock,
 }: {
   category: string; catBlocks: any[]; catIdx: number; totalCats: number;
   isCatHidden: boolean; isBlockHidden: (id: string) => boolean;
   toggleCatHidden: (cat: string) => void;
   toggleBlockHidden: (id: string) => void;
   moveBlock: (cat: string, blockId: string, fromIdx: number, toIdx: number) => void;
+  onDeleteBlock?: (id: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: `cat-${category}` });
   const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 50 : undefined };
@@ -77,7 +83,7 @@ function SortableCategoryRow({
             </button>
           </div>
           <CollapsibleContent>
-            <BlockList blocks={catBlocks} category={category} isBlockHidden={isBlockHidden} toggleBlockHidden={toggleBlockHidden} moveBlock={moveBlock} />
+            <BlockList blocks={catBlocks} category={category} isBlockHidden={isBlockHidden} toggleBlockHidden={toggleBlockHidden} moveBlock={moveBlock} onDeleteBlock={onDeleteBlock} />
           </CollapsibleContent>
         </Collapsible>
       </div>
@@ -86,9 +92,10 @@ function SortableCategoryRow({
 }
 
 /* ── Sortable Block Row ── */
-function SortableBlockRow({ block, isHidden, toggleHidden }: { block: any; isHidden: boolean; toggleHidden: () => void }) {
+function SortableBlockRow({ block, isHidden, toggleHidden, onDelete }: { block: any; isHidden: boolean; toggleHidden: () => void; onDelete?: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
   const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 50 : undefined };
+  const isCustom = !block.is_builtin;
 
   return (
     <div ref={setNodeRef} style={style}
@@ -99,9 +106,17 @@ function SortableBlockRow({ block, isHidden, toggleHidden }: { block: any; isHid
         <GripVertical className="h-3.5 w-3.5" />
       </button>
       <div className="flex-1 min-w-0">
-        <p className="text-[11px] font-medium truncate">{block.label}</p>
+        <div className="flex items-center gap-1">
+          <p className="text-[11px] font-medium truncate">{block.label}</p>
+          {isCustom && <Badge variant="outline" className="text-[8px] h-3.5 px-1">custom</Badge>}
+        </div>
         <p className="text-[10px] text-muted-foreground truncate">{block.value}</p>
       </div>
+      {isCustom && onDelete && (
+        <button onClick={onDelete} className="h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive shrink-0">
+          <Trash2 className="h-3 w-3" />
+        </button>
+      )}
       <button onClick={toggleHidden}
         className={cn("h-6 w-6 flex items-center justify-center rounded-md transition-colors shrink-0",
           isHidden ? "text-muted-foreground hover:text-foreground" : "text-foreground hover:text-muted-foreground")}>
@@ -112,10 +127,11 @@ function SortableBlockRow({ block, isHidden, toggleHidden }: { block: any; isHid
 }
 
 /* ── Block list with its own DnD context ── */
-function BlockList({ blocks, category, isBlockHidden, toggleBlockHidden, moveBlock }: {
+function BlockList({ blocks, category, isBlockHidden, toggleBlockHidden, moveBlock, onDeleteBlock }: {
   blocks: any[]; category: string; isBlockHidden: (id: string) => boolean;
   toggleBlockHidden: (id: string) => void;
   moveBlock: (cat: string, blockId: string, fromIdx: number, toIdx: number) => void;
+  onDeleteBlock?: (id: string) => void;
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -136,11 +152,62 @@ function BlockList({ blocks, category, isBlockHidden, toggleBlockHidden, moveBlo
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={blocks.map((b: any) => b.id)} strategy={verticalListSortingStrategy}>
           {blocks.map((block: any) => (
-            <SortableBlockRow key={block.id} block={block} isHidden={isBlockHidden(block.id)} toggleHidden={() => toggleBlockHidden(block.id)} />
+            <SortableBlockRow key={block.id} block={block} isHidden={isBlockHidden(block.id)} toggleHidden={() => toggleBlockHidden(block.id)}
+              onDelete={!block.is_builtin && onDeleteBlock ? () => onDeleteBlock(block.id) : undefined} />
           ))}
         </SortableContext>
       </DndContext>
     </div>
+  );
+}
+
+/* ── Custom Prompt Creator ── */
+function CustomPromptCreator({ userId, pipeline, onCreated }: { userId: string; pipeline: "image" | "video"; onCreated: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [label, setLabel] = useState("");
+  const [value, setValue] = useState("");
+  const [category, setCategory] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const imgCategories = ["img_realism", "img_identity", "img_lighting", "img_scene", "img_style", "img_enhance", "img_skin", "img_hair", "img_eyes", "img_camera", "img_post", "img_negative"];
+  const vidCategories = ["shot_setup", "camera", "motion", "style", "identity", "negative", "super_prompt"];
+  const categories = pipeline === "image" ? imgCategories : vidCategories;
+
+  const handleCreate = async () => {
+    if (!label.trim() || !value.trim() || !category) return;
+    setSaving(true);
+    const { error } = await supabase.from("prompt_blocks").insert({
+      label: label.trim(), value: value.trim(), category,
+      user_id: userId, is_builtin: false, sort_order: 999,
+    });
+    if (error) { toast({ title: "Failed", description: error.message, variant: "destructive" }); }
+    else { toast({ title: "Custom prompt created" }); onCreated(); setOpen(false); setLabel(""); setValue(""); setCategory(""); }
+    setSaving(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="gap-1.5 h-8"><Plus className="h-3.5 w-3.5" />Add Custom</Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle className="text-sm">New Custom Prompt</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1"><Label className="text-xs">Label</Label><Input placeholder="e.g. My Cinematic Look" value={label} onChange={(e) => setLabel(e.target.value)} className="bg-surface-1 text-sm" /></div>
+          <div className="space-y-1"><Label className="text-xs">Prompt Text</Label><Textarea placeholder="The actual prompt text to insert..." value={value} onChange={(e) => setValue(e.target.value)} className="bg-surface-1 min-h-[60px] text-sm" /></div>
+          <div className="space-y-1">
+            <Label className="text-xs">Category</Label>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger className="bg-surface-1 text-xs h-9"><SelectValue placeholder="Select category" /></SelectTrigger>
+              <SelectContent>{categories.map((c) => <SelectItem key={c} value={c} className="text-xs">{ALL_CATEGORY_LABELS[c] || c}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <Button onClick={handleCreate} disabled={saving || !label.trim() || !value.trim() || !category} className="w-full">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Create
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -280,6 +347,23 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
     setDirty(true);
   };
 
+  const handleDeleteBlock = async (blockId: string) => {
+    const { error } = await supabase.from("prompt_blocks").delete().eq("id", blockId).eq("user_id", user!.id);
+    if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); }
+    else {
+      queryClient.invalidateQueries({ queryKey: ["all_prompt_blocks"] });
+      queryClient.invalidateQueries({ queryKey: ["img_prompt_blocks"] });
+      queryClient.invalidateQueries({ queryKey: ["vid_prompt_blocks"] });
+      toast({ title: "Prompt deleted" });
+    }
+  };
+
+  const handlePromptCreated = () => {
+    queryClient.invalidateQueries({ queryKey: ["all_prompt_blocks"] });
+    queryClient.invalidateQueries({ queryKey: ["img_prompt_blocks"] });
+    queryClient.invalidateQueries({ queryKey: ["vid_prompt_blocks"] });
+  };
+
   const handleSave = useCallback(async () => {
     if (!user) return;
     setSaving(true);
@@ -331,7 +415,8 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
         </Button>
       </div>
 
-      <div className="flex rounded-lg bg-surface-1 p-1 gap-1">
+      <div className="flex items-center justify-between">
+        <div className="flex rounded-lg bg-surface-1 p-1 gap-1 flex-1 mr-2">
         {(["image", "video"] as const).map((p) => (
           <button key={p} onClick={() => setPipeline(p)}
             className={cn("flex-1 rounded-md py-2 text-xs font-medium transition-colors capitalize",
@@ -339,6 +424,8 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
             {p} Prompts
           </button>
         ))}
+        </div>
+        {user && <CustomPromptCreator userId={user.id} pipeline={pipeline} onCreated={handlePromptCreated} />}
       </div>
 
       {loading ? (
@@ -358,7 +445,8 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
                   isBlockHidden={isBlockHidden}
                   toggleCatHidden={toggleCatHidden}
                   toggleBlockHidden={toggleBlockHidden}
-                  moveBlock={moveBlock}
+                   moveBlock={moveBlock}
+                   onDeleteBlock={handleDeleteBlock}
                 />
               ))}
             </div>
