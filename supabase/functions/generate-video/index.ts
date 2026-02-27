@@ -6,6 +6,45 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+async function downloadAndStore(
+  supabaseAdmin: any,
+  userId: string,
+  remoteUrl: string,
+  fileExtension: string,
+  prefix: string
+): Promise<string | null> {
+  try {
+    const response = await fetch(remoteUrl);
+    if (!response.ok) {
+      console.error("Failed to download file:", response.status);
+      return null;
+    }
+    const blob = await response.blob();
+    const arrayBuffer = await blob.arrayBuffer();
+    const uint8 = new Uint8Array(arrayBuffer);
+    const contentType = blob.type || (fileExtension === "mp4" ? "video/mp4" : "image/png");
+    const fileName = `${prefix}/${userId}/${crypto.randomUUID()}.${fileExtension}`;
+
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from("seed-images")
+      .upload(fileName, uint8, { contentType, upsert: false });
+
+    if (uploadError) {
+      console.error("Storage upload error:", uploadError.message);
+      return null;
+    }
+
+    const { data: publicUrlData } = supabaseAdmin.storage
+      .from("seed-images")
+      .getPublicUrl(fileName);
+
+    return publicUrlData?.publicUrl || null;
+  } catch (err) {
+    console.error("downloadAndStore error:", err);
+    return null;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -26,6 +65,12 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
+    // Admin client for storage uploads (bypasses RLS)
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -41,7 +86,6 @@ Deno.serve(async (req) => {
 
     // ACTION: start generation
     if (action === "start") {
-      // Get scene data
       const { data: scene, error: sceneErr } = await supabase
         .from("scenes")
         .select("*")
@@ -56,7 +100,6 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Get user's API key
       const { data: settings } = await supabase
         .from("user_settings")
         .select("atlas_api_key")
@@ -71,7 +114,6 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Call Atlas Cloud API
       const generateRes = await fetch(
         "https://api.atlascloud.ai/api/v1/model/generateVideo",
         {
@@ -112,7 +154,6 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Create generation record
       const { data: generation, error: genErr } = await supabase
         .from("generations")
         .insert({
@@ -129,6 +170,7 @@ Deno.serve(async (req) => {
             shot_type: scene.shot_type,
             prompt_expansion: scene.prompt_expansion,
             audio: scene.audio_enabled,
+            seed_image_url: scene.seed_image_url,
           },
           cost: scene.cost_estimate,
         })
@@ -142,7 +184,6 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Update scene status
       await supabase
         .from("scenes")
         .update({ status: "processing" })
@@ -171,7 +212,6 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Get API key
       const { data: settings } = await supabase
         .from("user_settings")
         .select("atlas_api_key")
@@ -189,17 +229,30 @@ Deno.serve(async (req) => {
       const status = pollResult?.data?.status;
 
       if (status === "completed" || status === "succeeded") {
-        const videoUrl = pollResult?.data?.outputs?.[0] || null;
+        const atlasUrl = pollResult?.data?.outputs?.[0] || null;
+
+        // Download and persist to storage
+        let permanentUrl = atlasUrl;
+        if (atlasUrl) {
+          const stored = await downloadAndStore(supabaseAdmin, user.id, atlasUrl, "mp4", "video-results");
+          if (stored) {
+            permanentUrl = stored;
+            console.log("Video saved to storage:", stored);
+          } else {
+            console.warn("Failed to persist video, using Atlas URL as fallback");
+          }
+        }
+
         await supabase
           .from("generations")
-          .update({ status: "completed", video_url: videoUrl, atlas_result_url: videoUrl })
+          .update({ status: "completed", video_url: permanentUrl, atlas_result_url: atlasUrl })
           .eq("id", gen.id);
         await supabase
           .from("scenes")
           .update({ status: "completed" })
           .eq("id", gen.scene_id);
         return new Response(
-          JSON.stringify({ status: "completed", video_url: videoUrl }),
+          JSON.stringify({ status: "completed", video_url: permanentUrl }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       } else if (status === "failed") {
