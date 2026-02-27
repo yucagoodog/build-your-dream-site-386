@@ -85,14 +85,12 @@ const GalleryPage = () => {
   const { data: generations = [], isLoading: gensLoading } = useQuery({
     queryKey: ["image_generations", projectId],
     queryFn: async () => {
-      const { data: sources } = await supabase.from("source_images").select("id").eq("project_id", projectId!);
-      const sourceIds = sources?.map((s: any) => s.id) || [];
-      let query = supabase.from("image_edits").select("*").order("created_at", { ascending: false });
-      if (sourceIds.length > 0) {
-        query = query.or(`source_image_id.in.(${sourceIds.join(",")}),source_image_id.is.null`);
-      }
-      query = query.eq("user_id", user!.id);
-      const { data, error } = await query;
+      const { data, error } = await supabase
+        .from("image_edits")
+        .select("*")
+        .eq("project_id", projectId!)
+        .eq("user_id", user!.id)
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
     },

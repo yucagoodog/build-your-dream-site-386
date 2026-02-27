@@ -198,6 +198,7 @@ export type Database = {
           output_image_url: string | null
           output_size: string | null
           parent_edit_id: string | null
+          project_id: string | null
           prompt: string | null
           seed: number | null
           source_image_id: string | null
@@ -221,6 +222,7 @@ export type Database = {
           output_image_url?: string | null
           output_size?: string | null
           parent_edit_id?: string | null
+          project_id?: string | null
           prompt?: string | null
           seed?: number | null
           source_image_id?: string | null
@@ -244,6 +246,7 @@ export type Database = {
           output_image_url?: string | null
           output_size?: string | null
           parent_edit_id?: string | null
+          project_id?: string | null
           prompt?: string | null
           seed?: number | null
           source_image_id?: string | null
@@ -258,6 +261,13 @@ export type Database = {
             columns: ["parent_edit_id"]
             isOneToOne: false
             referencedRelation: "image_edits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "image_edits_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
           {
