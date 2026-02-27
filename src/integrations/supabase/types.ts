@@ -132,7 +132,7 @@ export type Database = {
           negative_prompt_used: string | null
           parameters: Json | null
           prompt_used: string | null
-          scene_id: string
+          scene_id: string | null
           status: string
           updated_at: string
           user_id: string
@@ -149,7 +149,7 @@ export type Database = {
           negative_prompt_used?: string | null
           parameters?: Json | null
           prompt_used?: string | null
-          scene_id: string
+          scene_id?: string | null
           status?: string
           updated_at?: string
           user_id: string
@@ -166,7 +166,7 @@ export type Database = {
           negative_prompt_used?: string | null
           parameters?: Json | null
           prompt_used?: string | null
-          scene_id?: string
+          scene_id?: string | null
           status?: string
           updated_at?: string
           user_id?: string

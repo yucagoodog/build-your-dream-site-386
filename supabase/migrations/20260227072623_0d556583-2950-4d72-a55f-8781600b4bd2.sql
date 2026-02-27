@@ -1,0 +1,1 @@
+ALTER TABLE public.generations ALTER COLUMN scene_id DROP NOT NULL;
