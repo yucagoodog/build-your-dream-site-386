@@ -110,7 +110,9 @@ Deno.serve(async (req) => {
         );
       }
 
-      const costEstimate = (resolution === "1080p" ? 0.12 : 0.06) * duration;
+      const costEstimate = (generate_audio
+        ? (resolution === "1080p" ? 0.12 : 0.06)
+        : (resolution === "1080p" ? 0.06 : 0.03)) * duration;
 
       const generateRes = await fetch("https://api.atlascloud.ai/api/v1/model/generateVideo", {
         method: "POST",
