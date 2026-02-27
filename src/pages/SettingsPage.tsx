@@ -142,7 +142,7 @@ const SettingsPage = () => {
               <Zap className="h-4 w-4 text-primary" />
               <h2 className="font-semibold text-sm">Default Mode</h2>
             </div>
-            <p className="text-[10px] text-muted-foreground">Which pipeline opens by default on the Projects page.</p>
+            <p className="text-[10px] text-muted-foreground">Which tab opens by default on the Create page.</p>
             <div className="flex rounded-lg bg-surface-1 p-1 gap-1">
               <button
                 onClick={() => setDefaultMode("video")}

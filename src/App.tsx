@@ -4,17 +4,11 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import ProjectsPage from "./pages/ProjectsPage";
-import ScenesPage from "./pages/ScenesPage";
-import QueuePage from "./pages/QueuePage";
-import ReviewPage from "./pages/ReviewPage";
+import CreatePage from "./pages/CreatePage";
 import SettingsPage from "./pages/SettingsPage";
 import AuthPage from "./pages/AuthPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
-import SceneEditorPage from "./pages/SceneEditorPage";
-import ImageEditorPage from "./pages/ImageEditorPage";
 import LibraryPage from "./pages/LibraryPage";
-import GalleryPage from "./pages/GalleryPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -43,15 +37,8 @@ const AppRoutes = () => (
   <Routes>
     <Route path="/auth" element={<AuthRoute><AuthPage /></AuthRoute>} />
     <Route path="/reset-password" element={<ResetPasswordPage />} />
-    <Route path="/" element={<ProtectedRoute><ProjectsPage /></ProtectedRoute>} />
-    <Route path="/scenes" element={<ProtectedRoute><ScenesPage /></ProtectedRoute>} />
-    <Route path="/scenes/:projectId" element={<ProtectedRoute><ScenesPage /></ProtectedRoute>} />
-    <Route path="/scene/:sceneId" element={<ProtectedRoute><SceneEditorPage /></ProtectedRoute>} />
-    <Route path="/gallery/:projectId" element={<ProtectedRoute><GalleryPage /></ProtectedRoute>} />
-    <Route path="/image/:sourceImageId" element={<ProtectedRoute><ImageEditorPage /></ProtectedRoute>} />
+    <Route path="/" element={<ProtectedRoute><CreatePage /></ProtectedRoute>} />
     <Route path="/library" element={<ProtectedRoute><LibraryPage /></ProtectedRoute>} />
-    <Route path="/queue" element={<ProtectedRoute><QueuePage /></ProtectedRoute>} />
-    <Route path="/review" element={<ProtectedRoute><ReviewPage /></ProtectedRoute>} />
     <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
     <Route path="*" element={<NotFound />} />
   </Routes>

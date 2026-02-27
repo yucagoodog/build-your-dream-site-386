@@ -180,23 +180,31 @@ const LibraryPage = () => {
 
   const handleReEdit = (item: LibraryItem) => {
     if (item.type === "video") {
-      if (item.scene_id) {
-        navigate(`/scene/${item.scene_id}`);
-      } else {
-        toast({ title: "No linked scene found", variant: "destructive" });
-      }
+      const params = item.parameters || {};
+      navigate("/", {
+        state: {
+          reEdit: {
+            mode: "video",
+            prompt: item.prompt || "",
+            negative_prompt: item.negative_prompt || "",
+            seed_image_url: params.seed_image_url || "",
+            resolution: params.resolution || "720p",
+            duration: params.duration || 5,
+            shot_type: params.shot_type || "single",
+            seed: params.seed,
+            prompt_expansion: params.prompt_expansion ?? true,
+            audio: params.audio ?? false,
+          },
+        },
+      });
       return;
     }
 
-    // For image, navigate to gallery with pre-filled params
-    if (!item.project_id) {
-      toast({ title: "No linked project", variant: "destructive" });
-      return;
-    }
-
-    navigate(`/gallery/${item.project_id}`, {
+    // For image, navigate to Create with pre-filled params
+    navigate("/", {
       state: {
         reEdit: {
+          mode: "image",
           prompt: item.prompt || "",
           negative_prompt: item.negative_prompt || "",
           output_size: item.output_size || "1024*1024",
@@ -388,9 +396,7 @@ const LibraryPage = () => {
                 onUpscale={() => handleUpscale(item)}
                 isUpscaling={upscaling.has(item.id)}
                 onDelete={() => handleDelete(item)}
-                onNavigateProject={() => {
-                  if (item.type === "image" && item.project_id) navigate(`/gallery/${item.project_id}`);
-                }}
+                onNavigateProject={() => {}}
               />
             ))}
           </div>
