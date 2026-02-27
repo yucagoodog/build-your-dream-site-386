@@ -49,6 +49,7 @@ const CreatePage = () => {
   const [negativePrompt, setNegativePrompt] = useState("");
   const [generating, setGenerating] = useState(false);
   const [defaultsLoaded, setDefaultsLoaded] = useState(false);
+  const [lastGeneratedId, setLastGeneratedId] = useState<string | null>(null);
 
   // Image state
   const [slotImages, setSlotImages] = useState<(string | null)[]>([null, null, null, null]);
@@ -331,7 +332,7 @@ const CreatePage = () => {
       if (data?.error) throw new Error(data.error);
       toast({ title: "Generation started!" });
       queryClient.invalidateQueries({ queryKey: ["recent_images"] });
-      if (data?.edit?.id) pollImageEdit(data.edit.id);
+      if (data?.edit?.id) { setLastGeneratedId(data.edit.id); pollImageEdit(data.edit.id); }
     } catch (err: any) {
       toast({ title: "Generation failed", description: err.message, variant: "destructive" });
     } finally { setGenerating(false); }
@@ -354,7 +355,7 @@ const CreatePage = () => {
       if (data?.error) throw new Error(data.error);
       toast({ title: "Video generation started!" });
       queryClient.invalidateQueries({ queryKey: ["recent_videos"] });
-      if (data?.generation?.id) pollVideoGen(data.generation.id);
+      if (data?.generation?.id) { setLastGeneratedId(data.generation.id); pollVideoGen(data.generation.id); }
     } catch (err: any) {
       toast({ title: "Generation failed", description: err.message, variant: "destructive" });
     } finally { setGenerating(false); }
@@ -371,7 +372,7 @@ const CreatePage = () => {
       if (data?.error) throw new Error(data.error);
       toast({ title: "Upscale started!" });
       queryClient.invalidateQueries({ queryKey: ["recent_images"] });
-      if (data?.edit?.id) pollImageEdit(data.edit.id);
+      if (data?.edit?.id) { setLastGeneratedId(data.edit.id); pollImageEdit(data.edit.id); }
     } catch (err: any) {
       toast({ title: "Upscale failed", description: err.message, variant: "destructive" });
     } finally { setGenerating(false); }
@@ -415,9 +416,13 @@ const CreatePage = () => {
     : mode === "video" ? !!seedImageUrl && prompt.trim().length > 0
     : !!upscaleImageUrl;
 
-  const recentResults = mode === "video" ? recentVideos : recentImages.filter((r: any) =>
-    mode === "upscale" ? r.model === "atlascloud/image-upscaler" : r.model !== "atlascloud/image-upscaler"
-  );
+  const recentResults = lastGeneratedId
+    ? (mode === "video" ? recentVideos : recentImages).filter((r: any) => {
+        if (mode === "upscale") return r.id === lastGeneratedId;
+        if (mode === "image") return r.id === lastGeneratedId;
+        return r.id === lastGeneratedId;
+      })
+    : [];
 
   return (
     <AppShell title="Create">
