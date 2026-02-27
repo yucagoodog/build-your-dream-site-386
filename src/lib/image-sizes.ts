@@ -1,5 +1,9 @@
-// Exact sizes from Atlas Cloud API dropdown for alibaba/wan-2.6/image-edit
+// All sizes from Atlas Cloud API for alibaba/wan-2.6/image-edit
 export const IMAGE_SIZES = [
+  { label: "~9:21 (576×1344)", value: "576*1344", ratio: "9:21" },
+  { label: "9:16 (720×1280)", value: "720*1280", ratio: "9:16" },
+  { label: "~3:7 (720×1680)", value: "720*1680", ratio: "3:7" },
+  { label: "3:4 (768×1024)", value: "768*1024", ratio: "3:4" },
   { label: "2:3 (800×1200)", value: "800*1200", ratio: "2:3" },
   { label: "~1:2 (816×1904)", value: "816*1904", ratio: "1:2" },
   { label: "~9:16 (936×1664)", value: "936*1664", ratio: "9:16" },
@@ -13,4 +17,11 @@ export const IMAGE_SIZES = [
   { label: "16:9 (1280×720)", value: "1280*720", ratio: "16:9" },
   { label: "4:3 (1280×960)", value: "1280*960", ratio: "4:3" },
   { label: "1:1 (1280×1280)", value: "1280*1280", ratio: "1:1" },
+  { label: "21:9 (1344×576)", value: "1344*576", ratio: "21:9" },
+  { label: "3:2 (1440×960)", value: "1440*960", ratio: "3:2" },
+  { label: "4:3 (1472×1104)", value: "1472*1104", ratio: "4:3" },
+  { label: "3:2 (1560×1040)", value: "1560*1040", ratio: "3:2" },
+  { label: "16:9 (1664×936)", value: "1664*936", ratio: "16:9" },
+  { label: "~7:3 (1680×720)", value: "1680*720", ratio: "7:3" },
+  { label: "~2:1 (1904×816)", value: "1904*816", ratio: "2:1" },
 ] as const;
