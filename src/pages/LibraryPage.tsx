@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Download, Search, Copy, Trash2, Clock, DollarSign,
-  AlertCircle, Sparkles, Loader2, Filter, ImageIcon,
+  AlertCircle, Sparkles, Loader2, Filter, ImageIcon, Clapperboard, Play,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,22 +17,28 @@ import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 
-type ImageEdit = {
+type LibraryItem = {
   id: string;
+  type: "image" | "video";
   prompt: string | null;
   negative_prompt: string | null;
   model: string;
-  output_size: string | null;
-  seed: number | null;
-  enable_prompt_expansion: boolean | null;
-  source_image_urls: string[] | null;
-  output_image_url: string | null;
   status: string;
   cost: number | null;
   error_message: string | null;
   created_at: string;
   project_id: string | null;
   is_final: boolean;
+  // Image-specific
+  output_size?: string | null;
+  seed?: number | null;
+  enable_prompt_expansion?: boolean | null;
+  source_image_urls?: string[] | null;
+  output_image_url?: string | null;
+  // Video-specific
+  video_url?: string | null;
+  parameters?: Record<string, any> | null;
+  scene_id?: string;
 };
 
 const statusColors: Record<string, string> = {
@@ -49,10 +55,12 @@ const LibraryPage = () => {
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("newest");
 
-  const { data: edits = [], isLoading } = useQuery({
-    queryKey: ["library_all_edits", user?.id],
+  // Fetch image edits
+  const { data: imageEdits = [], isLoading: loadingImages } = useQuery({
+    queryKey: ["library_image_edits", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("image_edits")
@@ -60,10 +68,60 @@ const LibraryPage = () => {
         .eq("user_id", user!.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data || []) as ImageEdit[];
+      return (data || []).map((e: any): LibraryItem => ({
+        id: e.id,
+        type: "image",
+        prompt: e.prompt,
+        negative_prompt: e.negative_prompt,
+        model: e.model,
+        status: e.status,
+        cost: e.cost,
+        error_message: e.error_message,
+        created_at: e.created_at,
+        project_id: e.project_id,
+        is_final: e.is_final,
+        output_size: e.output_size,
+        seed: e.seed,
+        enable_prompt_expansion: e.enable_prompt_expansion,
+        source_image_urls: e.source_image_urls,
+        output_image_url: e.output_image_url,
+      }));
     },
     enabled: !!user,
   });
+
+  // Fetch video generations
+  const { data: videoGens = [], isLoading: loadingVideos } = useQuery({
+    queryKey: ["library_video_gens", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("generations")
+        .select("*")
+        .eq("user_id", user!.id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data || []).map((g: any): LibraryItem => ({
+        id: g.id,
+        type: "video",
+        prompt: g.prompt_used,
+        negative_prompt: g.negative_prompt_used,
+        model: (g.parameters as any)?.model || "wan26-i2v-flash",
+        status: g.status,
+        cost: g.cost,
+        error_message: g.error_message,
+        created_at: g.created_at,
+        project_id: null,
+        is_final: g.is_final,
+        video_url: g.video_url,
+        parameters: g.parameters as any,
+        scene_id: g.scene_id,
+      }));
+    },
+    enabled: !!user,
+  });
+
+  const isLoading = loadingImages || loadingVideos;
+  const allItems = [...imageEdits, ...videoGens];
 
   const { data: projects = [] } = useQuery({
     queryKey: ["projects_lookup", user?.id],
@@ -80,7 +138,8 @@ const LibraryPage = () => {
   const projectMap = new Map(projects.map((p: any) => [p.id, p.name]));
 
   // Filter & search
-  const filtered = edits.filter((e) => {
+  const filtered = allItems.filter((e) => {
+    if (typeFilter !== "all" && e.type !== typeFilter) return false;
     if (statusFilter !== "all" && e.status !== statusFilter) return false;
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -99,49 +158,86 @@ const LibraryPage = () => {
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
 
-  const handleCopyParams = (edit: ImageEdit) => {
-    const params = {
-      prompt: edit.prompt || "",
-      negative_prompt: edit.negative_prompt || "",
-      model: edit.model,
-      output_size: edit.output_size || "1280*1280",
-      seed: edit.seed,
-      enable_prompt_expansion: edit.enable_prompt_expansion,
-    };
+  const handleCopyParams = (item: LibraryItem) => {
+    const params = item.type === "image"
+      ? {
+          prompt: item.prompt || "",
+          negative_prompt: item.negative_prompt || "",
+          model: item.model,
+          output_size: item.output_size || "1024*1024",
+          seed: item.seed,
+          enable_prompt_expansion: item.enable_prompt_expansion,
+        }
+      : {
+          prompt: item.prompt || "",
+          negative_prompt: item.negative_prompt || "",
+          model: item.model,
+          ...(item.parameters || {}),
+        };
     navigator.clipboard.writeText(JSON.stringify(params, null, 2));
     toast({ title: "Parameters copied to clipboard" });
   };
 
-  const handleDelete = async (editId: string) => {
-    const { error } = await supabase.from("image_edits").delete().eq("id", editId);
+  const handleDelete = async (item: LibraryItem) => {
+    const table = item.type === "image" ? "image_edits" : "generations";
+    const { error } = await supabase.from(table).delete().eq("id", item.id);
     if (error) {
       toast({ title: "Delete failed", description: error.message, variant: "destructive" });
     } else {
-      queryClient.invalidateQueries({ queryKey: ["library_all_edits"] });
+      queryClient.invalidateQueries({ queryKey: item.type === "image" ? ["library_image_edits"] : ["library_video_gens"] });
       toast({ title: "Deleted" });
     }
   };
 
-  const totalCost = edits.reduce((sum, e) => sum + (e.cost || 0), 0);
-  const completedCount = edits.filter((e) => e.status === "completed").length;
+  const totalCost = allItems.reduce((sum, e) => sum + (e.cost || 0), 0);
+  const completedCount = allItems.filter((e) => e.status === "completed").length;
+  const imageCount = allItems.filter((e) => e.type === "image").length;
+  const videoCount = allItems.filter((e) => e.type === "video").length;
 
   return (
     <AppShell title="Library">
       <div className="p-4 lg:p-6 max-w-4xl mx-auto space-y-5">
         {/* Stats strip */}
-        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <ImageIcon className="h-3.5 w-3.5" />
-            {edits.length} generations
-          </span>
+        <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
           <span className="flex items-center gap-1">
             <Sparkles className="h-3.5 w-3.5" />
-            {completedCount} completed
+            {allItems.length} total
+          </span>
+          <span className="flex items-center gap-1">
+            <ImageIcon className="h-3.5 w-3.5" />
+            {imageCount} images
+          </span>
+          <span className="flex items-center gap-1">
+            <Clapperboard className="h-3.5 w-3.5" />
+            {videoCount} videos
           </span>
           <span className="flex items-center gap-1">
             <DollarSign className="h-3.5 w-3.5" />
-            ${totalCost.toFixed(3)} total
+            ${totalCost.toFixed(3)}
           </span>
+        </div>
+
+        {/* Type switcher */}
+        <div className="flex rounded-lg bg-muted p-1 gap-1">
+          {[
+            { value: "all", label: "All", icon: Sparkles },
+            { value: "image", label: "Image", icon: ImageIcon },
+            { value: "video", label: "Video", icon: Clapperboard },
+          ].map(({ value, label, icon: Icon }) => (
+            <button
+              key={value}
+              onClick={() => setTypeFilter(value)}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-1.5 rounded-md py-2 text-xs font-medium transition-colors",
+                typeFilter === value
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          ))}
         </div>
 
         {/* Filters */}
@@ -186,21 +282,23 @@ const LibraryPage = () => {
           </div>
         ) : sorted.length === 0 ? (
           <div className="text-center py-12 space-y-2">
-            <ImageIcon className="h-8 w-8 text-muted-foreground/30 mx-auto" />
+            <Sparkles className="h-8 w-8 text-muted-foreground/30 mx-auto" />
             <p className="text-sm text-muted-foreground">
-              {search || statusFilter !== "all" ? "No results match your filters." : "No generations yet."}
+              {search || statusFilter !== "all" || typeFilter !== "all" ? "No results match your filters." : "No generations yet."}
             </p>
           </div>
         ) : (
           <div className="space-y-3">
-            {sorted.map((edit) => (
+            {sorted.map((item) => (
               <LibraryCard
-                key={edit.id}
-                edit={edit}
-                projectName={edit.project_id ? projectMap.get(edit.project_id) || null : null}
-                onCopyParams={() => handleCopyParams(edit)}
-                onDelete={() => handleDelete(edit.id)}
-                onNavigateProject={() => edit.project_id && navigate(`/gallery/${edit.project_id}`)}
+                key={item.id}
+                item={item}
+                projectName={item.project_id ? projectMap.get(item.project_id) || null : null}
+                onCopyParams={() => handleCopyParams(item)}
+                onDelete={() => handleDelete(item)}
+                onNavigateProject={() => {
+                  if (item.type === "image" && item.project_id) navigate(`/gallery/${item.project_id}`);
+                }}
               />
             ))}
           </div>
@@ -211,44 +309,64 @@ const LibraryPage = () => {
 };
 
 function LibraryCard({
-  edit,
+  item,
   projectName,
   onCopyParams,
   onDelete,
   onNavigateProject,
 }: {
-  edit: ImageEdit;
+  item: LibraryItem;
   projectName: string | null;
   onCopyParams: () => void;
   onDelete: () => void;
   onNavigateProject: () => void;
 }) {
-  const inputUrls: string[] = edit.source_image_urls || [];
+  const inputUrls: string[] = item.source_image_urls || [];
+  const params = item.parameters || {};
 
   return (
     <Card className="border-border/50 overflow-hidden">
       <CardContent className="p-0">
         <div className="flex flex-col lg:flex-row">
-          {/* Output image */}
-          <div className="lg:w-48 lg:shrink-0 bg-muted">
-            {edit.output_image_url ? (
+          {/* Preview */}
+          <div className="lg:w-48 lg:shrink-0 bg-muted relative">
+            {item.type === "image" && item.output_image_url ? (
               <img
-                src={edit.output_image_url}
+                src={item.output_image_url}
                 alt="Output"
                 className="w-full h-48 lg:h-full object-cover"
                 loading="lazy"
               />
+            ) : item.type === "video" && item.video_url ? (
+              <video
+                src={item.video_url}
+                className="w-full h-48 lg:h-full object-cover"
+                muted
+                playsInline
+                preload="metadata"
+                onMouseEnter={(e) => (e.target as HTMLVideoElement).play()}
+                onMouseLeave={(e) => { const v = e.target as HTMLVideoElement; v.pause(); v.currentTime = 0; }}
+              />
             ) : (
               <div className="w-full h-48 lg:h-full flex items-center justify-center">
-                {edit.status === "processing" ? (
+                {item.status === "processing" ? (
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                ) : edit.status === "failed" ? (
+                ) : item.status === "failed" ? (
                   <AlertCircle className="h-5 w-5 text-destructive" />
+                ) : item.type === "video" ? (
+                  <Clapperboard className="h-5 w-5 text-muted-foreground/30" />
                 ) : (
                   <ImageIcon className="h-5 w-5 text-muted-foreground/30" />
                 )}
               </div>
             )}
+            {/* Type badge overlay */}
+            <div className="absolute top-2 left-2">
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5 bg-background/80 backdrop-blur-sm">
+                {item.type === "video" ? <Clapperboard className="h-2.5 w-2.5 mr-0.5" /> : <ImageIcon className="h-2.5 w-2.5 mr-0.5" />}
+                {item.type}
+              </Badge>
+            </div>
           </div>
 
           {/* Details */}
@@ -258,11 +376,11 @@ function LibraryCard({
               <div className="flex flex-wrap items-center gap-1.5">
                 <Badge
                   variant="outline"
-                  className={cn("text-[10px] border", statusColors[edit.status] || statusColors.queued)}
+                  className={cn("text-[10px] border", statusColors[item.status] || statusColors.queued)}
                 >
-                  {edit.status}
+                  {item.status}
                 </Badge>
-                {edit.is_final && (
+                {item.is_final && (
                   <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400 bg-amber-500/10">
                     Approved
                   </Badge>
@@ -278,34 +396,46 @@ function LibraryCard({
               </div>
               <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground shrink-0">
                 <span className="flex items-center gap-0.5">
-                  <DollarSign className="h-3 w-3" />{edit.cost?.toFixed(3)}
+                  <DollarSign className="h-3 w-3" />{item.cost?.toFixed(3)}
                 </span>
                 <span className="flex items-center gap-0.5">
                   <Clock className="h-3 w-3" />
-                  {formatDistanceToNow(new Date(edit.created_at), { addSuffix: true })}
+                  {formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}
                 </span>
               </div>
             </div>
 
             {/* Prompt */}
-            {edit.prompt && (
-              <p className="text-xs text-foreground line-clamp-2">{edit.prompt}</p>
+            {item.prompt && (
+              <p className="text-xs text-foreground line-clamp-2">{item.prompt}</p>
             )}
-            {edit.negative_prompt && (
+            {item.negative_prompt && (
               <p className="text-[11px] text-muted-foreground line-clamp-1">
-                <span className="font-medium">Neg:</span> {edit.negative_prompt}
+                <span className="font-medium">Neg:</span> {item.negative_prompt}
               </p>
             )}
 
             {/* Parameters */}
             <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
-              <span>Model: <span className="text-foreground">{edit.model}</span></span>
-              <span>Size: <span className="text-foreground">{edit.output_size?.replace("*", "×")}</span></span>
-              {edit.seed != null && <span>Seed: <span className="text-foreground">{edit.seed}</span></span>}
-              <span>Expand: <span className="text-foreground">{edit.enable_prompt_expansion ? "On" : "Off"}</span></span>
+              <span>Model: <span className="text-foreground">{item.model}</span></span>
+              {item.type === "image" && (
+                <>
+                  <span>Size: <span className="text-foreground">{item.output_size?.replace("*", "×")}</span></span>
+                  {item.seed != null && <span>Seed: <span className="text-foreground">{item.seed}</span></span>}
+                  <span>Expand: <span className="text-foreground">{item.enable_prompt_expansion ? "On" : "Off"}</span></span>
+                </>
+              )}
+              {item.type === "video" && (
+                <>
+                  {params.resolution && <span>Res: <span className="text-foreground">{params.resolution}</span></span>}
+                  {params.duration && <span>Duration: <span className="text-foreground">{params.duration}s</span></span>}
+                  {params.shot_type && <span>Shot: <span className="text-foreground">{params.shot_type}</span></span>}
+                  {params.seed != null && <span>Seed: <span className="text-foreground">{params.seed}</span></span>}
+                </>
+              )}
             </div>
 
-            {/* Source images */}
+            {/* Source images (image edits only) */}
             {inputUrls.length > 0 && (
               <div className="flex gap-1">
                 {inputUrls.map((url, i) => (
@@ -319,11 +449,21 @@ function LibraryCard({
               </div>
             )}
 
+            {/* Seed image for video */}
+            {item.type === "video" && params.seed_image_url && (
+              <div className="flex gap-1 items-center">
+                <div className="w-8 h-8 rounded overflow-hidden bg-muted shrink-0 border border-border/50">
+                  <img src={params.seed_image_url} alt="" className="w-full h-full object-cover" />
+                </div>
+                <span className="text-[10px] text-muted-foreground ml-1">seed image</span>
+              </div>
+            )}
+
             {/* Error */}
-            {edit.status === "failed" && edit.error_message && (
+            {item.status === "failed" && item.error_message && (
               <div className="flex items-start gap-1.5 text-[11px] text-destructive">
                 <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                <span className="line-clamp-2">{edit.error_message}</span>
+                <span className="line-clamp-2">{item.error_message}</span>
               </div>
             )}
 
@@ -332,9 +472,16 @@ function LibraryCard({
               <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={onCopyParams}>
                 <Copy className="h-3 w-3" /> Copy Params
               </Button>
-              {edit.output_image_url && (
+              {item.type === "image" && item.output_image_url && (
                 <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" asChild>
-                  <a href={edit.output_image_url} download target="_blank" rel="noopener noreferrer">
+                  <a href={item.output_image_url} download target="_blank" rel="noopener noreferrer">
+                    <Download className="h-3 w-3" /> Download
+                  </a>
+                </Button>
+              )}
+              {item.type === "video" && item.video_url && (
+                <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" asChild>
+                  <a href={item.video_url} download target="_blank" rel="noopener noreferrer">
                     <Download className="h-3 w-3" /> Download
                   </a>
                 </Button>
