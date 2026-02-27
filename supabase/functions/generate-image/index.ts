@@ -6,6 +6,45 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+async function downloadAndStore(
+  supabaseAdmin: any,
+  userId: string,
+  remoteUrl: string,
+  fileExtension: string,
+  prefix: string
+): Promise<string | null> {
+  try {
+    const response = await fetch(remoteUrl);
+    if (!response.ok) {
+      console.error("Failed to download file:", response.status);
+      return null;
+    }
+    const blob = await response.blob();
+    const arrayBuffer = await blob.arrayBuffer();
+    const uint8 = new Uint8Array(arrayBuffer);
+    const contentType = blob.type || (fileExtension === "mp4" ? "video/mp4" : "image/png");
+    const fileName = `${prefix}/${userId}/${crypto.randomUUID()}.${fileExtension}`;
+
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from("seed-images")
+      .upload(fileName, uint8, { contentType, upsert: false });
+
+    if (uploadError) {
+      console.error("Storage upload error:", uploadError.message);
+      return null;
+    }
+
+    const { data: publicUrlData } = supabaseAdmin.storage
+      .from("seed-images")
+      .getPublicUrl(fileName);
+
+    return publicUrlData?.publicUrl || null;
+  } catch (err) {
+    console.error("downloadAndStore error:", err);
+    return null;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -24,6 +63,12 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
       { global: { headers: { Authorization: authHeader } } }
+    );
+
+    // Admin client for storage uploads (bypasses RLS)
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -52,7 +97,6 @@ Deno.serve(async (req) => {
         });
       }
 
-      // If single source_image_id provided (legacy), resolve URL
       if (source_image_id && urls.length === 0) {
         const { data: src } = await supabase
           .from("source_images")
@@ -62,7 +106,6 @@ Deno.serve(async (req) => {
         if (src?.image_url) urls.push(src.image_url);
       }
 
-      // If parent edit, use its output
       if (parent_edit_id) {
         const { data: parentEdit } = await supabase
           .from("image_edits")
@@ -76,7 +119,6 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Get user's API key
       const { data: settings } = await supabase
         .from("user_settings")
         .select("atlas_api_key")
@@ -91,7 +133,6 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Call Atlas Cloud Image Edit API
       console.log("Sending to Atlas Cloud:", JSON.stringify({ model, images: urls, prompt, size: output_size }));
       const generateRes = await fetch(
         "https://api.atlascloud.ai/api/v1/model/generateImage",
@@ -131,7 +172,6 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Create image_edits record
       const { data: edit, error: editErr } = await supabase
         .from("image_edits")
         .insert({
@@ -198,13 +238,26 @@ Deno.serve(async (req) => {
       const status = pollResult?.data?.status;
 
       if (status === "completed" || status === "succeeded") {
-        const outputUrl = pollResult?.data?.outputs?.[0] || null;
+        const atlasUrl = pollResult?.data?.outputs?.[0] || null;
+
+        // Download and persist to storage
+        let permanentUrl = atlasUrl;
+        if (atlasUrl) {
+          const stored = await downloadAndStore(supabaseAdmin, user.id, atlasUrl, "png", "image-results");
+          if (stored) {
+            permanentUrl = stored;
+            console.log("Image saved to storage:", stored);
+          } else {
+            console.warn("Failed to persist image, using Atlas URL as fallback");
+          }
+        }
+
         await supabase
           .from("image_edits")
-          .update({ status: "completed", output_image_url: outputUrl, atlas_result_url: outputUrl })
+          .update({ status: "completed", output_image_url: permanentUrl, atlas_result_url: atlasUrl })
           .eq("id", edit.id);
         return new Response(
-          JSON.stringify({ status: "completed", output_image_url: outputUrl }),
+          JSON.stringify({ status: "completed", output_image_url: permanentUrl }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       } else if (status === "failed") {
