@@ -8,19 +8,21 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Lock, Zap, BookOpen, Loader2, Save, LogOut, Clapperboard, ImageIcon } from "lucide-react";
+import { Lock, Zap, BookOpen, Loader2, Save, LogOut, Clapperboard, ImageIcon, FolderOpen } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { IMAGE_SIZES } from "@/lib/image-sizes";
 import { PromptBlockManager } from "@/components/PromptBlockManager";
+import { SeedImageManager } from "@/components/SeedImageManager";
 
 const SettingsPage = () => {
   const { user, signOut } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showPromptManager, setShowPromptManager] = useState(false);
+  const [showImageDrive, setShowImageDrive] = useState(false);
 
   // Shared
   const [apiKey, setApiKey] = useState("");
@@ -109,6 +111,16 @@ const SettingsPage = () => {
       <AppShell title="Settings">
         <div className="p-4 max-w-lg mx-auto">
           <PromptBlockManager onBack={() => setShowPromptManager(false)} />
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (showImageDrive) {
+    return (
+      <AppShell title="Settings">
+        <div className="p-4 max-w-lg mx-auto">
+          <SeedImageManager onBack={() => setShowImageDrive(false)} />
         </div>
       </AppShell>
     );
@@ -281,6 +293,25 @@ const SettingsPage = () => {
           {saving ? <Loader2 className="animate-spin" /> : <Save className="h-4 w-4" />}
           Save Changes
         </Button>
+
+        {/* Seed Image Drive */}
+        <Card className="border-border/50">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <FolderOpen className="h-4 w-4 text-primary" />
+              <h2 className="font-semibold text-sm">Seed Image Drive</h2>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Upload and manage seed images in bulk. Reuse them across generations.
+            </p>
+            <button
+              onClick={() => setShowImageDrive(true)}
+              className="w-full rounded-lg bg-surface-1 p-3 text-left text-xs text-muted-foreground transition-colors hover:bg-surface-2 active:bg-surface-3"
+            >
+              Open Image Drive →
+            </button>
+          </CardContent>
+        </Card>
 
         {/* Prompt Library */}
         <Card className="border-border/50">
