@@ -178,7 +178,7 @@ const LibraryPage = () => {
     toast({ title: "Parameters copied to clipboard" });
   };
 
-  const handleReEdit = async (item: LibraryItem) => {
+  const handleReEdit = (item: LibraryItem) => {
     if (item.type === "video") {
       if (item.scene_id) {
         navigate(`/scene/${item.scene_id}`);
@@ -188,54 +188,25 @@ const LibraryPage = () => {
       return;
     }
 
-    // For image, start a new generation with the same params & source images
-    const imageUrls = item.source_image_urls?.length ? item.source_image_urls : item.output_image_url ? [item.output_image_url] : [];
-    if (!imageUrls.length) {
-      toast({ title: "No source images to re-edit", variant: "destructive" });
+    // For image, navigate to gallery with pre-filled params
+    if (!item.project_id) {
+      toast({ title: "No linked project", variant: "destructive" });
       return;
     }
 
-    toast({ title: "Starting re-edit..." });
-    try {
-      const { data, error } = await supabase.functions.invoke("generate-image", {
-        body: {
-          action: "start",
-          project_id: item.project_id,
-          image_urls: imageUrls,
+    navigate(`/gallery/${item.project_id}`, {
+      state: {
+        reEdit: {
           prompt: item.prompt || "",
           negative_prompt: item.negative_prompt || "",
           output_size: item.output_size || "1024*1024",
-          seed: item.seed ?? -1,
-          enable_prompt_expansion: item.enable_prompt_expansion ?? true,
           model: item.model,
+          seed: item.seed,
+          enable_prompt_expansion: item.enable_prompt_expansion ?? true,
+          source_image_urls: item.source_image_urls || [],
         },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-
-      toast({ title: "Re-edit started", description: "Polling for results..." });
-      const editId = data.edit.id;
-      const poll = setInterval(async () => {
-        try {
-          const { data: pollData } = await supabase.functions.invoke("generate-image", {
-            body: { action: "poll", edit_id: editId },
-          });
-          if (pollData?.status === "completed") {
-            clearInterval(poll);
-            queryClient.invalidateQueries({ queryKey: ["library_image_edits"] });
-            toast({ title: "Re-edit completed!" });
-          } else if (pollData?.status === "failed") {
-            clearInterval(poll);
-            queryClient.invalidateQueries({ queryKey: ["library_image_edits"] });
-            toast({ title: "Re-edit failed", description: pollData.error, variant: "destructive" });
-          }
-        } catch {
-          clearInterval(poll);
-        }
-      }, 4000);
-    } catch (err: any) {
-      toast({ title: "Re-edit failed", description: err.message, variant: "destructive" });
-    }
+      },
+    });
   };
 
   const handleDelete = async (item: LibraryItem) => {
