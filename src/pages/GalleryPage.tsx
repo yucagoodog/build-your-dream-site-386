@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +30,7 @@ const GalleryPage = () => {
   const { projectId } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
 
   const [slotImages, setSlotImages] = useState<(string | null)[]>([null, null, null, null]);
@@ -62,7 +63,32 @@ const GalleryPage = () => {
     staleTime: Infinity,
   });
 
+  // Load from re-edit state or user defaults
   useEffect(() => {
+    const reEdit = (location.state as any)?.reEdit;
+    if (reEdit && !defaultsLoaded) {
+      setPrompt(reEdit.prompt || "");
+      setNegativePrompt(reEdit.negative_prompt || "");
+      setOutputSize(reEdit.output_size || "1280*1280");
+      setModel(reEdit.model || "alibaba/wan-2.6/image-edit");
+      setPromptExpansion(reEdit.enable_prompt_expansion ?? true);
+      if (reEdit.seed != null) {
+        setSeed(String(reEdit.seed));
+        setUseRandomSeed(false);
+      }
+      // Pre-fill source image slots
+      if (reEdit.source_image_urls?.length) {
+        const slots: (string | null)[] = [null, null, null, null];
+        reEdit.source_image_urls.slice(0, 4).forEach((url: string, i: number) => {
+          slots[i] = url;
+        });
+        setSlotImages(slots);
+      }
+      setDefaultsLoaded(true);
+      // Clear the state so refreshing doesn't re-apply
+      window.history.replaceState({}, document.title);
+      return;
+    }
     if (userDefaults && !defaultsLoaded) {
       const d = userDefaults as any;
       if (d.default_image_model) setModel(d.default_image_model);
@@ -73,7 +99,7 @@ const GalleryPage = () => {
       if (d.default_image_prompt_expansion !== undefined) setPromptExpansion(d.default_image_prompt_expansion);
       setDefaultsLoaded(true);
     }
-  }, [userDefaults, defaultsLoaded]);
+  }, [userDefaults, defaultsLoaded, location.state]);
 
   const { data: project } = useQuery({
     queryKey: ["project", projectId],
