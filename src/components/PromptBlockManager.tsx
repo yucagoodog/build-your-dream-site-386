@@ -475,13 +475,36 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
   };
 
   const handleEditBlock = async (blockId: string, label: string, value: string) => {
-    const { error } = await supabase.from("prompt_blocks").update({ label, value } as any).eq("id", blockId);
-    if (error) { toast({ title: "Update failed", description: error.message, variant: "destructive" }); }
-    else {
+    const block = blocks.find((b: any) => b.id === blockId);
+    if (!block || !user) return;
+
+    if (block.is_builtin) {
+      // Builtin blocks can't be updated via RLS — create a custom copy and hide the original
+      const { error } = await supabase.from("prompt_blocks").insert({
+        label, value, category: block.category,
+        user_id: user.id, is_builtin: false, sort_order: block.sort_order,
+      });
+      if (error) { toast({ title: "Save failed", description: error.message, variant: "destructive" }); return; }
+      // Hide the original builtin block
+      setLocalBlockPrefs((prev) => ({
+        ...prev,
+        [blockId]: { hidden: true, custom_sort_order: prev[blockId]?.custom_sort_order ?? null },
+      }));
+      setDirty(true);
       queryClient.invalidateQueries({ queryKey: ["all_prompt_blocks"] });
       queryClient.invalidateQueries({ queryKey: ["img_prompt_blocks"] });
       queryClient.invalidateQueries({ queryKey: ["vid_prompt_blocks"] });
-      toast({ title: "Prompt updated" });
+      toast({ title: "Custom copy created (original hidden)" });
+    } else {
+      // Custom block — update directly
+      const { error } = await supabase.from("prompt_blocks").update({ label, value } as any).eq("id", blockId).eq("user_id", user.id);
+      if (error) { toast({ title: "Update failed", description: error.message, variant: "destructive" }); }
+      else {
+        queryClient.invalidateQueries({ queryKey: ["all_prompt_blocks"] });
+        queryClient.invalidateQueries({ queryKey: ["img_prompt_blocks"] });
+        queryClient.invalidateQueries({ queryKey: ["vid_prompt_blocks"] });
+        toast({ title: "Prompt updated" });
+      }
     }
   };
 
