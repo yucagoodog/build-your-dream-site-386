@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import {
   ArrowLeft, ChevronDown, ChevronRight, Eye, EyeOff, GripVertical,
-  Loader2, Save, Plus, Trash2,
+  Loader2, Save, Plus, Trash2, Pencil, Check, X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -43,41 +43,85 @@ interface LocalBlockPref { hidden: boolean; custom_sort_order: number | null; }
 interface LocalCatPref { hidden: boolean; custom_sort_order: number; }
 
 /* ── Sortable Block Row ── */
-function SortableBlockRow({ block, isHidden, toggleHidden, onDelete }: { block: any; isHidden: boolean; toggleHidden: () => void; onDelete?: () => void }) {
+function SortableBlockRow({ block, isHidden, toggleHidden, onDelete, onEdit }: { block: any; isHidden: boolean; toggleHidden: () => void; onDelete?: () => void; onEdit?: (label: string, value: string) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
   const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 50 : undefined };
   const isCustom = !block.is_builtin;
+  const [expanded, setExpanded] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editLabel, setEditLabel] = useState(block.label);
+  const [editValue, setEditValue] = useState(block.value);
+
+  const handleSaveEdit = () => {
+    if (onEdit && editLabel.trim() && editValue.trim()) {
+      onEdit(editLabel.trim(), editValue.trim());
+      setEditing(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditLabel(block.label);
+    setEditValue(block.value);
+    setEditing(false);
+  };
+
+  // Format value with line breaks at sentence boundaries for display
+  const formatValue = (val: string) => {
+    return val.replace(/\.\s+/g, ".\n").replace(/,\s*(?=[A-Z])/g, ",\n");
+  };
+
+  if (editing) {
+    return (
+      <div ref={setNodeRef} style={style} className="rounded-lg bg-background border border-primary/30 p-3 space-y-2">
+        <Input value={editLabel} onChange={(e) => setEditLabel(e.target.value)} className="bg-surface-1 text-xs h-9" placeholder="Label" />
+        <Textarea value={editValue} onChange={(e) => setEditValue(e.target.value)} className="bg-surface-1 text-[11px] min-h-[80px] whitespace-pre-wrap" placeholder="Prompt text..." />
+        <div className="flex gap-1.5 justify-end">
+          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={handleCancelEdit}><X className="h-3 w-3" /> Cancel</Button>
+          <Button size="sm" className="h-7 text-xs" onClick={handleSaveEdit}><Check className="h-3 w-3" /> Save</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div ref={setNodeRef} style={style}
       className={cn(
-        "flex items-center gap-2 px-2 py-2.5 rounded-lg transition-colors min-h-[44px]",
+        "flex items-start gap-2 px-2 py-2.5 rounded-lg transition-colors min-h-[44px]",
         isHidden ? "bg-muted/30 opacity-50" : "bg-background",
         isDragging && "shadow-md ring-2 ring-primary/30"
       )}>
       <button {...attributes} {...listeners}
-        className="h-10 w-8 flex items-center justify-center cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none shrink-0">
+        className="h-10 w-8 flex items-center justify-center cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none shrink-0 mt-0.5">
         <GripVertical className="h-4 w-4" />
       </button>
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setExpanded(!expanded)}>
         <div className="flex items-center gap-1.5">
-          <p className="text-xs font-medium truncate">{block.label}</p>
+          <p className="text-xs font-medium">{block.label}</p>
           {isCustom && <Badge variant="outline" className="text-[8px] h-4 px-1 shrink-0">custom</Badge>}
         </div>
-        <p className="text-[10px] text-muted-foreground truncate mt-0.5">{block.value}</p>
+        <p className={cn(
+          "text-[10px] text-muted-foreground mt-1 leading-relaxed",
+          expanded ? "whitespace-pre-wrap" : "line-clamp-2"
+        )}>
+          {expanded ? formatValue(block.value) : block.value}
+        </p>
       </div>
-      <div className="flex items-center gap-1 shrink-0">
+      <div className="flex items-center gap-0.5 shrink-0">
+        <button onClick={() => { setEditing(true); setEditLabel(block.label); setEditValue(block.value); }}
+          className="h-9 w-9 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground active:bg-foreground/10">
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
         {isCustom && onDelete && (
-          <button onClick={onDelete} className="h-10 w-10 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive active:bg-destructive/10">
-            <Trash2 className="h-4 w-4" />
+          <button onClick={onDelete} className="h-9 w-9 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive active:bg-destructive/10">
+            <Trash2 className="h-3.5 w-3.5" />
           </button>
         )}
         <button onClick={toggleHidden}
           className={cn(
-            "h-10 w-10 flex items-center justify-center rounded-lg transition-colors",
+            "h-9 w-9 flex items-center justify-center rounded-lg transition-colors",
             isHidden ? "text-muted-foreground hover:text-foreground" : "text-foreground hover:text-muted-foreground"
           )}>
-          {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          {isHidden ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
         </button>
       </div>
     </div>
@@ -85,11 +129,12 @@ function SortableBlockRow({ block, isHidden, toggleHidden, onDelete }: { block: 
 }
 
 /* ── Block list with its own DnD context ── */
-function BlockList({ blocks, category, isBlockHidden, toggleBlockHidden, moveBlock, onDeleteBlock }: {
+function BlockList({ blocks, category, isBlockHidden, toggleBlockHidden, moveBlock, onDeleteBlock, onEditBlock }: {
   blocks: any[]; category: string; isBlockHidden: (id: string) => boolean;
   toggleBlockHidden: (id: string) => void;
   moveBlock: (cat: string, blockId: string, fromIdx: number, toIdx: number) => void;
   onDeleteBlock?: (id: string) => void;
+  onEditBlock?: (id: string, label: string, value: string) => void;
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -111,7 +156,8 @@ function BlockList({ blocks, category, isBlockHidden, toggleBlockHidden, moveBlo
         <SortableContext items={blocks.map((b: any) => b.id)} strategy={verticalListSortingStrategy}>
           {blocks.map((block: any) => (
             <SortableBlockRow key={block.id} block={block} isHidden={isBlockHidden(block.id)} toggleHidden={() => toggleBlockHidden(block.id)}
-              onDelete={!block.is_builtin && onDeleteBlock ? () => onDeleteBlock(block.id) : undefined} />
+              onDelete={!block.is_builtin && onDeleteBlock ? () => onDeleteBlock(block.id) : undefined}
+              onEdit={onEditBlock ? (label, value) => onEditBlock(block.id, label, value) : undefined} />
           ))}
         </SortableContext>
       </DndContext>
@@ -122,7 +168,7 @@ function BlockList({ blocks, category, isBlockHidden, toggleBlockHidden, moveBlo
 /* ── Sortable Category Row ── */
 function SortableCategoryRow({
   category, catBlocks, isCatHidden, isBlockHidden,
-  toggleCatHidden, toggleBlockHidden, moveBlock, onDeleteBlock,
+  toggleCatHidden, toggleBlockHidden, moveBlock, onDeleteBlock, onEditBlock,
 }: {
   category: string; catBlocks: any[];
   isCatHidden: boolean; isBlockHidden: (id: string) => boolean;
@@ -130,6 +176,7 @@ function SortableCategoryRow({
   toggleBlockHidden: (id: string) => void;
   moveBlock: (cat: string, blockId: string, fromIdx: number, toIdx: number) => void;
   onDeleteBlock?: (id: string) => void;
+  onEditBlock?: (id: string, label: string, value: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: `cat-${category}` });
   const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 50 : undefined };
@@ -172,7 +219,7 @@ function SortableCategoryRow({
             </button>
           </div>
           <CollapsibleContent>
-            <BlockList blocks={catBlocks} category={category} isBlockHidden={isBlockHidden} toggleBlockHidden={toggleBlockHidden} moveBlock={moveBlock} onDeleteBlock={onDeleteBlock} />
+            <BlockList blocks={catBlocks} category={category} isBlockHidden={isBlockHidden} toggleBlockHidden={toggleBlockHidden} moveBlock={moveBlock} onDeleteBlock={onDeleteBlock} onEditBlock={onEditBlock} />
           </CollapsibleContent>
         </Collapsible>
       </div>
@@ -427,6 +474,17 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
     }
   };
 
+  const handleEditBlock = async (blockId: string, label: string, value: string) => {
+    const { error } = await supabase.from("prompt_blocks").update({ label, value } as any).eq("id", blockId);
+    if (error) { toast({ title: "Update failed", description: error.message, variant: "destructive" }); }
+    else {
+      queryClient.invalidateQueries({ queryKey: ["all_prompt_blocks"] });
+      queryClient.invalidateQueries({ queryKey: ["img_prompt_blocks"] });
+      queryClient.invalidateQueries({ queryKey: ["vid_prompt_blocks"] });
+      toast({ title: "Prompt updated" });
+    }
+  };
+
   const handlePromptCreated = () => {
     queryClient.invalidateQueries({ queryKey: ["all_prompt_blocks"] });
     queryClient.invalidateQueries({ queryKey: ["img_prompt_blocks"] });
@@ -519,6 +577,7 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
                   toggleBlockHidden={toggleBlockHidden}
                   moveBlock={moveBlock}
                   onDeleteBlock={handleDeleteBlock}
+                  onEditBlock={handleEditBlock}
                 />
               ))}
             </div>
