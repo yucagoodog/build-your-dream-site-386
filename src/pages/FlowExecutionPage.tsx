@@ -48,15 +48,21 @@ const FlowExecutionPage = () => {
     enabled: !!execId,
   });
 
-  // Load step executions
+  // Load step executions with step_type from flow_steps
   const { data: stepExecs = [], refetch: refetchSteps } = useQuery({
     queryKey: ["flow_step_executions", execId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("flow_step_executions").select("*").eq("execution_id", execId!)
+        .from("flow_step_executions")
+        .select("*, flow_steps!flow_step_executions_step_id_fkey(step_type)")
+        .eq("execution_id", execId!)
         .order("step_number");
       if (error) throw error;
-      return data || [];
+      // Flatten step_type from joined data
+      return (data || []).map((se: any) => ({
+        ...se,
+        step_type: se.flow_steps?.step_type || null,
+      }));
     },
     enabled: !!execId,
   });
@@ -310,11 +316,11 @@ const FlowExecutionPage = () => {
     // Reset this step and all subsequent
     for (let i = fromIndex; i < stepExecs.length; i++) {
       await supabase.from("flow_step_executions")
-        .update({ status: "pending", output_artifact_url: null, error_message: null, started_at: null, completed_at: null } as any)
+        .update({ status: "pending", output_artifact_url: null, input_artifact_url: null, error_message: null, started_at: null, completed_at: null } as any)
         .eq("id", stepExecs[i].id);
     }
     await supabase.from("flow_executions")
-      .update({ status: "running", current_step: fromIndex + 1 } as any)
+      .update({ status: "pending", current_step: fromIndex + 1 } as any)
       .eq("id", execId);
     refetchAll();
     toast({ title: `Reset from step ${fromIndex + 1}` });
