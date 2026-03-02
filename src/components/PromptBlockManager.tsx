@@ -39,6 +39,17 @@ const ALL_CATEGORY_LABELS: Record<string, string> = {
   template: "Templates",
 };
 
+/** Convert a snake_case slug to Title Case for display */
+function formatCategoryLabel(slug: string): string {
+  if (ALL_CATEGORY_LABELS[slug]) return ALL_CATEGORY_LABELS[slug];
+  return slug.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Check if a category belongs to a known pipeline prefix */
+function isKnownPipelineCategory(cat: string): boolean {
+  return cat.startsWith("img_") || cat.startsWith("vid_") || cat === "template";
+}
+
 interface LocalBlockPref { hidden: boolean; custom_sort_order: number | null; }
 interface LocalCatPref { hidden: boolean; custom_sort_order: number; }
 
@@ -205,7 +216,7 @@ function SortableCategoryRow({
                 ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                 : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               }
-              <span className="text-sm font-medium">{ALL_CATEGORY_LABELS[category] || category}</span>
+              <span className="text-sm font-medium">{formatCategoryLabel(category)}</span>
               <div className="flex items-center gap-1">
                 <Badge variant="secondary" className="text-[10px] h-5 px-1.5">{visibleCount}/{catBlocks.length}</Badge>
               </div>
@@ -228,7 +239,7 @@ function SortableCategoryRow({
 }
 
 /* ── Custom Prompt Creator Form ── */
-function CustomPromptForm({ userId, pipeline, onCreated, onClose }: { userId: string; pipeline: "image" | "video"; onCreated: () => void; onClose: () => void }) {
+function CustomPromptForm({ userId, pipeline, onCreated, onClose, allBlocks }: { userId: string; pipeline: "image" | "video"; onCreated: () => void; onClose: () => void; allBlocks: any[] }) {
   const [label, setLabel] = useState("");
   const [value, setValue] = useState("");
   const [category, setCategory] = useState("");
@@ -237,7 +248,12 @@ function CustomPromptForm({ userId, pipeline, onCreated, onClose }: { userId: st
 
   const imgCategories = ["img_realism", "img_identity", "img_face_swap", "img_negative"];
   const vidCategories = ["vid_realism", "vid_motion", "vid_identity", "vid_negative", "template"];
-  const categories = pipeline === "image" ? imgCategories : vidCategories;
+  const baseCategories = pipeline === "image" ? imgCategories : vidCategories;
+  // Also include existing custom (non-prefixed) categories from the database
+  const existingCustomCategories = [...new Set(
+    allBlocks.filter((b: any) => !b.is_builtin && !isKnownPipelineCategory(b.category)).map((b: any) => b.category as string)
+  )];
+  const categories = [...baseCategories, ...existingCustomCategories.filter((c) => !baseCategories.includes(c))];
 
   const resolvedCategory = category === "__custom__" ? customCategory.trim().toLowerCase().replace(/\s+/g, "_") : category;
 
@@ -271,7 +287,7 @@ function CustomPromptForm({ userId, pipeline, onCreated, onClose }: { userId: st
         <Select value={category} onValueChange={(v) => { setCategory(v); if (v !== "__custom__") setCustomCategory(""); }}>
           <SelectTrigger className="bg-surface-1 text-xs h-11"><SelectValue placeholder="Select category" /></SelectTrigger>
           <SelectContent>
-            {categories.map((c) => <SelectItem key={c} value={c} className="text-xs">{ALL_CATEGORY_LABELS[c] || c}</SelectItem>)}
+            {categories.map((c) => <SelectItem key={c} value={c} className="text-xs">{formatCategoryLabel(c)}</SelectItem>)}
             <SelectItem value="__custom__" className="text-xs font-medium">+ New Category…</SelectItem>
           </SelectContent>
         </Select>
@@ -290,7 +306,7 @@ function CustomPromptForm({ userId, pipeline, onCreated, onClose }: { userId: st
 }
 
 /* ── Custom Prompt Creator (Drawer on mobile, Dialog on desktop) ── */
-function CustomPromptCreator({ userId, pipeline, onCreated }: { userId: string; pipeline: "image" | "video"; onCreated: () => void }) {
+function CustomPromptCreator({ userId, pipeline, onCreated, allBlocks }: { userId: string; pipeline: "image" | "video"; onCreated: () => void; allBlocks: any[] }) {
   const [open, setOpen] = useState(false);
   const isMobile = useIsMobile();
 
@@ -309,7 +325,7 @@ function CustomPromptCreator({ userId, pipeline, onCreated }: { userId: string; 
             <DrawerHeader className="px-0">
               <DrawerTitle className="text-sm">New Custom Prompt</DrawerTitle>
             </DrawerHeader>
-            <CustomPromptForm userId={userId} pipeline={pipeline} onCreated={onCreated} onClose={() => setOpen(false)} />
+            <CustomPromptForm userId={userId} pipeline={pipeline} onCreated={onCreated} onClose={() => setOpen(false)} allBlocks={allBlocks} />
           </DrawerContent>
         </Drawer>
       </>
@@ -322,7 +338,7 @@ function CustomPromptCreator({ userId, pipeline, onCreated }: { userId: string; 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle className="text-sm">New Custom Prompt</DialogTitle></DialogHeader>
-          <CustomPromptForm userId={userId} pipeline={pipeline} onCreated={onCreated} onClose={() => setOpen(false)} />
+          <CustomPromptForm userId={userId} pipeline={pipeline} onCreated={onCreated} onClose={() => setOpen(false)} allBlocks={allBlocks} />
         </DialogContent>
       </Dialog>
     </>
@@ -391,11 +407,12 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
     }
   }, [catPrefs]);
 
-  const isImageCategory = (cat: string) => cat.startsWith("img_");
-
-  const filteredBlocks = blocks.filter((b: any) =>
-    pipeline === "image" ? isImageCategory(b.category) : !isImageCategory(b.category)
-  );
+  // Custom (non-prefixed) categories show in both tabs
+  const filteredBlocks = blocks.filter((b: any) => {
+    if (!isKnownPipelineCategory(b.category)) return true; // custom categories → show in both tabs
+    if (pipeline === "image") return b.category.startsWith("img_");
+    return !b.category.startsWith("img_"); // vid_*, template → video tab
+  });
 
   const allCategories = [...new Set(filteredBlocks.map((b: any) => b.category))];
   const sortedCategories = [...allCategories].sort((a, b) => {
@@ -579,7 +596,7 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
             </button>
           ))}
         </div>
-        {user && <CustomPromptCreator userId={user.id} pipeline={pipeline} onCreated={handlePromptCreated} />}
+        {user && <CustomPromptCreator userId={user.id} pipeline={pipeline} onCreated={handlePromptCreated} allBlocks={blocks} />}
       </div>
 
       {/* Category list */}
