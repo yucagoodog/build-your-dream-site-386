@@ -93,15 +93,29 @@ const FlowExecutionPage = () => {
     if (!user) return false;
     const config = stepExec.config_snapshot || {};
     const stepType = stepExec.step_type || null;
-    const firstSourceImage = Array.isArray(config.source_image_urls)
-      ? config.source_image_urls.find((url: string | null) => Boolean(url))
-      : null;
-    const inputUrl =
-      stepExec.input_artifact_url ||
-      config.source_image_url ||
-      config.seed_image_url ||
-      firstSourceImage ||
-      null;
+
+    const getConfigInput = (cfg: any): string | null => {
+      const firstSourceImage = Array.isArray(cfg?.source_image_urls)
+        ? cfg.source_image_urls.find((url: string | null) => Boolean(url))
+        : null;
+      return cfg?.source_image_url || cfg?.seed_image_url || firstSourceImage || null;
+    };
+
+    let inputUrl = stepExec.input_artifact_url || getConfigInput(config);
+
+    // Extra guard for stale closures/race conditions: fetch latest row before execution
+    if (!inputUrl) {
+      const { data: latestStep } = await supabase
+        .from("flow_step_executions")
+        .select("input_artifact_url, config_snapshot")
+        .eq("id", stepExec.id)
+        .single();
+
+      inputUrl =
+        latestStep?.input_artifact_url ||
+        getConfigInput(latestStep?.config_snapshot || {}) ||
+        null;
+    }
 
     // Mark step as running
     await supabase.from("flow_step_executions")

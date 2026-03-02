@@ -229,10 +229,23 @@ const FlowBuilderPage = () => {
         .insert({ flow_id: flowId, user_id: user.id, mode, status: "pending" } as any)
         .select().single();
       if (execErr) throw execErr;
-      const stepExecs = savedSteps.map((s: any) => ({
-        execution_id: exec.id, step_id: s.id, user_id: user.id,
-        step_number: s.step_number, status: "pending", config_snapshot: s.config,
-      }));
+      const stepExecs = savedSteps.map((s: any) => {
+        const cfg = s.config || {};
+        const firstSourceImage = Array.isArray(cfg.source_image_urls)
+          ? cfg.source_image_urls.find((url: string | null) => Boolean(url))
+          : null;
+        const initialInput = cfg.source_image_url || cfg.seed_image_url || firstSourceImage || null;
+
+        return {
+          execution_id: exec.id,
+          step_id: s.id,
+          user_id: user.id,
+          step_number: s.step_number,
+          status: "pending",
+          input_artifact_url: initialInput,
+          config_snapshot: s.config,
+        };
+      });
       const { error: seErr } = await supabase.from("flow_step_executions").insert(stepExecs as any);
       if (seErr) throw seErr;
       navigate(`/flows/${flowId}/run/${exec.id}`);
