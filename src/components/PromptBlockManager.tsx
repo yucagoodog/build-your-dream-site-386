@@ -6,26 +6,27 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import {
-  ArrowLeft, ChevronDown, Eye, EyeOff, GripVertical,
-  Loader2, Save, Plus, Trash2, Pencil,
+  ArrowLeft, ChevronDown, ChevronRight, Eye, EyeOff, GripVertical,
+  Loader2, Save, Plus, Trash2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor,
-  useSensor, useSensors, DragEndEvent, DragOverlay, DragStartEvent,
+  useSensor, useSensors, DragEndEvent,
 } from "@dnd-kit/core";
 import {
   arrayMove, SortableContext, sortableKeyboardCoordinates,
   useSortable, verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-
 
 const ALL_CATEGORY_LABELS: Record<string, string> = {
   img_realism: "Realism", img_identity: "Identity Preserve", img_face_swap: "Face Swap",
@@ -44,53 +45,6 @@ const ALL_CATEGORY_LABELS: Record<string, string> = {
 interface LocalBlockPref { hidden: boolean; custom_sort_order: number | null; }
 interface LocalCatPref { hidden: boolean; custom_sort_order: number; }
 
-/* ── Sortable Category Row ── */
-function SortableCategoryRow({
-  category, catBlocks, catIdx, totalCats, isCatHidden, isBlockHidden,
-  toggleCatHidden, toggleBlockHidden, moveBlock, onDeleteBlock,
-}: {
-  category: string; catBlocks: any[]; catIdx: number; totalCats: number;
-  isCatHidden: boolean; isBlockHidden: (id: string) => boolean;
-  toggleCatHidden: (cat: string) => void;
-  toggleBlockHidden: (id: string) => void;
-  moveBlock: (cat: string, blockId: string, fromIdx: number, toIdx: number) => void;
-  onDeleteBlock?: (id: string) => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: `cat-${category}` });
-  const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 50 : undefined };
-  const hiddenInCat = catBlocks.filter((b: any) => isBlockHidden(b.id)).length;
-
-  return (
-    <div ref={setNodeRef} style={style} className={cn("rounded-lg bg-surface-1", isCatHidden && "opacity-40", isDragging && "shadow-lg ring-2 ring-primary/30")}>
-      <div className="flex items-center gap-1.5 px-2 py-1.5">
-        {/* Drag handle */}
-        <button {...attributes} {...listeners} className="h-8 w-6 flex items-center justify-center cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none">
-          <GripVertical className="h-4 w-4" />
-        </button>
-
-        <Collapsible className="flex-1">
-          <div className="flex items-center justify-between">
-            <CollapsibleTrigger className="flex items-center gap-2 flex-1 py-1">
-              <span className="text-xs font-medium">{ALL_CATEGORY_LABELS[category] || category}</span>
-              <Badge variant="secondary" className="text-[10px] h-5">{catBlocks.length}</Badge>
-              {hiddenInCat > 0 && <Badge variant="outline" className="text-[10px] h-5 text-muted-foreground">{hiddenInCat} hidden</Badge>}
-              <ChevronDown className="h-3 w-3 text-muted-foreground" />
-            </CollapsibleTrigger>
-            <button onClick={() => toggleCatHidden(category)}
-              className={cn("h-7 w-7 flex items-center justify-center rounded-md transition-colors shrink-0",
-                isCatHidden ? "text-muted-foreground hover:text-foreground" : "text-foreground hover:text-muted-foreground")}>
-              {isCatHidden ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-            </button>
-          </div>
-          <CollapsibleContent>
-            <BlockList blocks={catBlocks} category={category} isBlockHidden={isBlockHidden} toggleBlockHidden={toggleBlockHidden} moveBlock={moveBlock} onDeleteBlock={onDeleteBlock} />
-          </CollapsibleContent>
-        </Collapsible>
-      </div>
-    </div>
-  );
-}
-
 /* ── Sortable Block Row ── */
 function SortableBlockRow({ block, isHidden, toggleHidden, onDelete }: { block: any; isHidden: boolean; toggleHidden: () => void; onDelete?: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
@@ -99,29 +53,36 @@ function SortableBlockRow({ block, isHidden, toggleHidden, onDelete }: { block: 
 
   return (
     <div ref={setNodeRef} style={style}
-      className={cn("flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors",
-        isHidden ? "bg-muted/30 opacity-50" : "bg-background hover:bg-surface-1",
-        isDragging && "shadow-md ring-2 ring-primary/30")}>
-      <button {...attributes} {...listeners} className="h-6 w-5 flex items-center justify-center cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none">
-        <GripVertical className="h-3.5 w-3.5" />
+      className={cn(
+        "flex items-center gap-2 px-2 py-2.5 rounded-lg transition-colors min-h-[44px]",
+        isHidden ? "bg-muted/30 opacity-50" : "bg-background",
+        isDragging && "shadow-md ring-2 ring-primary/30"
+      )}>
+      <button {...attributes} {...listeners}
+        className="h-10 w-8 flex items-center justify-center cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none shrink-0">
+        <GripVertical className="h-4 w-4" />
       </button>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1">
-          <p className="text-[11px] font-medium truncate">{block.label}</p>
-          {isCustom && <Badge variant="outline" className="text-[8px] h-3.5 px-1">custom</Badge>}
+        <div className="flex items-center gap-1.5">
+          <p className="text-xs font-medium truncate">{block.label}</p>
+          {isCustom && <Badge variant="outline" className="text-[8px] h-4 px-1 shrink-0">custom</Badge>}
         </div>
-        <p className="text-[10px] text-muted-foreground truncate">{block.value}</p>
+        <p className="text-[10px] text-muted-foreground truncate mt-0.5">{block.value}</p>
       </div>
-      {isCustom && onDelete && (
-        <button onClick={onDelete} className="h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive shrink-0">
-          <Trash2 className="h-3 w-3" />
+      <div className="flex items-center gap-1 shrink-0">
+        {isCustom && onDelete && (
+          <button onClick={onDelete} className="h-10 w-10 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive active:bg-destructive/10">
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
+        <button onClick={toggleHidden}
+          className={cn(
+            "h-10 w-10 flex items-center justify-center rounded-lg transition-colors",
+            isHidden ? "text-muted-foreground hover:text-foreground" : "text-foreground hover:text-muted-foreground"
+          )}>
+          {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </button>
-      )}
-      <button onClick={toggleHidden}
-        className={cn("h-6 w-6 flex items-center justify-center rounded-md transition-colors shrink-0",
-          isHidden ? "text-muted-foreground hover:text-foreground" : "text-foreground hover:text-muted-foreground")}>
-        {isHidden ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-      </button>
+      </div>
     </div>
   );
 }
@@ -148,7 +109,7 @@ function BlockList({ blocks, category, isBlockHidden, toggleBlockHidden, moveBlo
   };
 
   return (
-    <div className="mt-1 space-y-0.5 pl-1">
+    <div className="mt-1.5 space-y-1 pb-1">
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={blocks.map((b: any) => b.id)} strategy={verticalListSortingStrategy}>
           {blocks.map((block: any) => (
@@ -161,9 +122,69 @@ function BlockList({ blocks, category, isBlockHidden, toggleBlockHidden, moveBlo
   );
 }
 
-/* ── Custom Prompt Creator ── */
-function CustomPromptCreator({ userId, pipeline, onCreated }: { userId: string; pipeline: "image" | "video"; onCreated: () => void }) {
-  const [open, setOpen] = useState(false);
+/* ── Sortable Category Row ── */
+function SortableCategoryRow({
+  category, catBlocks, isCatHidden, isBlockHidden,
+  toggleCatHidden, toggleBlockHidden, moveBlock, onDeleteBlock,
+}: {
+  category: string; catBlocks: any[];
+  isCatHidden: boolean; isBlockHidden: (id: string) => boolean;
+  toggleCatHidden: (cat: string) => void;
+  toggleBlockHidden: (id: string) => void;
+  moveBlock: (cat: string, blockId: string, fromIdx: number, toIdx: number) => void;
+  onDeleteBlock?: (id: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: `cat-${category}` });
+  const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 50 : undefined };
+  const hiddenInCat = catBlocks.filter((b: any) => isBlockHidden(b.id)).length;
+  const visibleCount = catBlocks.length - hiddenInCat;
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div ref={setNodeRef} style={style}
+      className={cn(
+        "rounded-xl border border-border/40 bg-surface-1 overflow-hidden",
+        isCatHidden && "opacity-40",
+        isDragging && "shadow-lg ring-2 ring-primary/30"
+      )}>
+      {/* Category header */}
+      <div className="flex items-center gap-1 px-1 min-h-[52px]">
+        <button {...attributes} {...listeners}
+          className="h-12 w-8 flex items-center justify-center cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none shrink-0">
+          <GripVertical className="h-4 w-4" />
+        </button>
+
+        <Collapsible className="flex-1" open={isOpen} onOpenChange={setIsOpen}>
+          <div className="flex items-center gap-2">
+            <CollapsibleTrigger className="flex items-center gap-2 flex-1 py-2 min-h-[44px] active:opacity-70">
+              {isOpen
+                ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              }
+              <span className="text-sm font-medium">{ALL_CATEGORY_LABELS[category] || category}</span>
+              <div className="flex items-center gap-1">
+                <Badge variant="secondary" className="text-[10px] h-5 px-1.5">{visibleCount}/{catBlocks.length}</Badge>
+              </div>
+            </CollapsibleTrigger>
+            <button onClick={() => toggleCatHidden(category)}
+              className={cn(
+                "h-11 w-11 flex items-center justify-center rounded-lg transition-colors shrink-0",
+                isCatHidden ? "text-muted-foreground hover:text-foreground active:bg-foreground/10" : "text-foreground hover:text-muted-foreground active:bg-foreground/10"
+              )}>
+              {isCatHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+          <CollapsibleContent>
+            <BlockList blocks={catBlocks} category={category} isBlockHidden={isBlockHidden} toggleBlockHidden={toggleBlockHidden} moveBlock={moveBlock} onDeleteBlock={onDeleteBlock} />
+          </CollapsibleContent>
+        </Collapsible>
+      </div>
+    </div>
+  );
+}
+
+/* ── Custom Prompt Creator Form ── */
+function CustomPromptForm({ userId, pipeline, onCreated, onClose }: { userId: string; pipeline: "image" | "video"; onCreated: () => void; onClose: () => void }) {
   const [label, setLabel] = useState("");
   const [value, setValue] = useState("");
   const [category, setCategory] = useState("");
@@ -179,7 +200,6 @@ function CustomPromptCreator({ userId, pipeline, onCreated }: { userId: string; 
   const handleCreate = async () => {
     if (!label.trim() || !value.trim() || !resolvedCategory) return;
     setSaving(true);
-    // If custom category, also register its label
     if (category === "__custom__" && customCategory.trim()) {
       ALL_CATEGORY_LABELS[resolvedCategory] = customCategory.trim();
     }
@@ -188,42 +208,80 @@ function CustomPromptCreator({ userId, pipeline, onCreated }: { userId: string; 
       user_id: userId, is_builtin: false, sort_order: 999,
     });
     if (error) { toast({ title: "Failed", description: error.message, variant: "destructive" }); }
-    else { toast({ title: "Custom prompt created" }); onCreated(); setOpen(false); setLabel(""); setValue(""); setCategory(""); setCustomCategory(""); }
+    else { toast({ title: "Custom prompt created" }); onCreated(); onClose(); }
     setSaving(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline" className="gap-1.5 h-8"><Plus className="h-3.5 w-3.5" />Add Custom</Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-sm">
-        <DialogHeader><DialogTitle className="text-sm">New Custom Prompt</DialogTitle></DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-1"><Label className="text-xs">Label</Label><Input placeholder="e.g. My Cinematic Look" value={label} onChange={(e) => setLabel(e.target.value)} className="bg-surface-1 text-sm" /></div>
-          <div className="space-y-1"><Label className="text-xs">Prompt Text</Label><Textarea placeholder="The actual prompt text to insert..." value={value} onChange={(e) => setValue(e.target.value)} className="bg-surface-1 min-h-[60px] text-sm" /></div>
-          <div className="space-y-1">
-            <Label className="text-xs">Category</Label>
-            <Select value={category} onValueChange={(v) => { setCategory(v); if (v !== "__custom__") setCustomCategory(""); }}>
-              <SelectTrigger className="bg-surface-1 text-xs h-9"><SelectValue placeholder="Select category" /></SelectTrigger>
-              <SelectContent>
-                {categories.map((c) => <SelectItem key={c} value={c} className="text-xs">{ALL_CATEGORY_LABELS[c] || c}</SelectItem>)}
-                <SelectItem value="__custom__" className="text-xs font-medium">+ New Category…</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {category === "__custom__" && (
-            <div className="space-y-1">
-              <Label className="text-xs">Category Name</Label>
-              <Input placeholder="e.g. My Templates" value={customCategory} onChange={(e) => setCustomCategory(e.target.value)} className="bg-surface-1 text-sm" />
-            </div>
-          )}
-          <Button onClick={handleCreate} disabled={saving || !label.trim() || !value.trim() || !resolvedCategory} className="w-full">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Create
-          </Button>
+    <div className="space-y-4 p-1">
+      <div className="space-y-1.5">
+        <Label className="text-xs">Label</Label>
+        <Input placeholder="e.g. My Cinematic Look" value={label} onChange={(e) => setLabel(e.target.value)} className="bg-surface-1 text-sm h-11" />
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Prompt Text</Label>
+        <Textarea placeholder="The actual prompt text to insert..." value={value} onChange={(e) => setValue(e.target.value)} className="bg-surface-1 min-h-[80px] text-sm" />
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Category</Label>
+        <Select value={category} onValueChange={(v) => { setCategory(v); if (v !== "__custom__") setCustomCategory(""); }}>
+          <SelectTrigger className="bg-surface-1 text-xs h-11"><SelectValue placeholder="Select category" /></SelectTrigger>
+          <SelectContent>
+            {categories.map((c) => <SelectItem key={c} value={c} className="text-xs">{ALL_CATEGORY_LABELS[c] || c}</SelectItem>)}
+            <SelectItem value="__custom__" className="text-xs font-medium">+ New Category…</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      {category === "__custom__" && (
+        <div className="space-y-1.5">
+          <Label className="text-xs">Category Name</Label>
+          <Input placeholder="e.g. My Templates" value={customCategory} onChange={(e) => setCustomCategory(e.target.value)} className="bg-surface-1 text-sm h-11" />
         </div>
-      </DialogContent>
-    </Dialog>
+      )}
+      <Button onClick={handleCreate} disabled={saving || !label.trim() || !value.trim() || !resolvedCategory} className="w-full h-11">
+        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Create
+      </Button>
+    </div>
+  );
+}
+
+/* ── Custom Prompt Creator (Drawer on mobile, Dialog on desktop) ── */
+function CustomPromptCreator({ userId, pipeline, onCreated }: { userId: string; pipeline: "image" | "video"; onCreated: () => void }) {
+  const [open, setOpen] = useState(false);
+  const isMobile = useIsMobile();
+
+  const trigger = (
+    <Button size="sm" variant="outline" className="gap-1.5 h-9 text-xs" onClick={() => setOpen(true)}>
+      <Plus className="h-3.5 w-3.5" /> Add Custom
+    </Button>
+  );
+
+  if (isMobile) {
+    return (
+      <>
+        {trigger}
+        <Drawer open={open} onOpenChange={setOpen}>
+          <DrawerContent className="px-4 pb-8">
+            <DrawerHeader className="px-0">
+              <DrawerTitle className="text-sm">New Custom Prompt</DrawerTitle>
+            </DrawerHeader>
+            <CustomPromptForm userId={userId} pipeline={pipeline} onCreated={onCreated} onClose={() => setOpen(false)} />
+          </DrawerContent>
+        </Drawer>
+      </>
+    );
+  }
+
+  return (
+    <>
+      {trigger}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle className="text-sm">New Custom Prompt</DialogTitle></DialogHeader>
+          <CustomPromptForm userId={userId} pipeline={pipeline} onCreated={onCreated} onClose={() => setOpen(false)} />
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -334,7 +392,6 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
     setDirty(true);
   };
 
-  // Category drag end
   const handleCatDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -351,7 +408,6 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
     setDirty(true);
   };
 
-  // Block reorder within category
   const moveBlock = (_cat: string, _blockId: string, fromIdx: number, toIdx: number) => {
     const cat = _cat;
     const reordered = arrayMove(blocksByCategory[cat], fromIdx, toIdx);
@@ -417,52 +473,55 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <button onClick={onBack} className="tap-target flex items-center justify-center">
+      {/* Header */}
+      <div className="flex items-center gap-3 min-h-[48px]">
+        <button onClick={onBack} className="h-11 w-11 flex items-center justify-center rounded-lg active:bg-foreground/10">
           <ArrowLeft className="h-5 w-5" />
         </button>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <h2 className="font-semibold text-sm">Prompt Library</h2>
           <p className="text-[10px] text-muted-foreground">{hiddenCats} groups hidden · {hiddenBlocks} blocks hidden</p>
         </div>
-        <Button onClick={handleSave} disabled={saving || !dirty} size="sm" className="h-8">
+        <Button onClick={handleSave} disabled={saving || !dirty} size="sm" className="h-9 gap-1.5">
           {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
           Save
         </Button>
       </div>
 
-      <div className="flex items-center justify-between">
-        <div className="flex rounded-lg bg-surface-1 p-1 gap-1 flex-1 mr-2">
-        {(["image", "video"] as const).map((p) => (
-          <button key={p} onClick={() => setPipeline(p)}
-            className={cn("flex-1 rounded-md py-2 text-xs font-medium transition-colors capitalize",
-              pipeline === p ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
-            {p} Prompts
-          </button>
-        ))}
+      {/* Pipeline toggle + Add Custom */}
+      <div className="flex items-center gap-2">
+        <div className="flex rounded-xl bg-surface-1 p-1 gap-1 flex-1">
+          {(["image", "video"] as const).map((p) => (
+            <button key={p} onClick={() => setPipeline(p)}
+              className={cn(
+                "flex-1 rounded-lg py-2.5 text-xs font-medium transition-colors capitalize min-h-[40px]",
+                pipeline === p ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground active:opacity-70"
+              )}>
+              {p}
+            </button>
+          ))}
         </div>
         {user && <CustomPromptCreator userId={user.id} pipeline={pipeline} onCreated={handlePromptCreated} />}
       </div>
 
+      {/* Category list */}
       {loading ? (
-        <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+        <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleCatDragEnd}>
           <SortableContext items={sortedCategories.map((c) => `cat-${c}`)} strategy={verticalListSortingStrategy}>
-            <div className="space-y-1.5">
-              {sortedCategories.map((category, catIdx) => (
+            <div className="space-y-2">
+              {sortedCategories.map((category) => (
                 <SortableCategoryRow
                   key={category}
                   category={category}
                   catBlocks={blocksByCategory[category] || []}
-                  catIdx={catIdx}
-                  totalCats={sortedCategories.length}
                   isCatHidden={isCatHidden(category)}
                   isBlockHidden={isBlockHidden}
                   toggleCatHidden={toggleCatHidden}
                   toggleBlockHidden={toggleBlockHidden}
-                   moveBlock={moveBlock}
-                   onDeleteBlock={handleDeleteBlock}
+                  moveBlock={moveBlock}
+                  onDeleteBlock={handleDeleteBlock}
                 />
               ))}
             </div>
