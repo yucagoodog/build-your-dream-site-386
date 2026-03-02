@@ -203,11 +203,7 @@ export function ImagePromptSection({ prompt, setPrompt, negativePrompt, setNegat
     setPrompt(block ? (cleaned ? `${block.value} ${cleaned}` : block.value) : cleaned);
   }, [prompt, identityBlocks, setPrompt]);
 
-  useEffect(() => {
-    if (negativeBlocks[0] && !negativePrompt) {
-      setNegativePrompt(negativeBlocks[0].value);
-    }
-  }, [negativeBlocks.length]);
+  // Negative prompt is user-opt-in only — no auto-fill
 
   return (
     <section className="space-y-4">
@@ -379,11 +375,7 @@ export function VideoPromptSection({ prompt, setPrompt, negativePrompt, setNegat
     setPrompt(block ? (cleaned ? `${cleaned} ${block.value}` : block.value) : cleaned);
   }, [prompt, identityBlocks, duration, setPrompt]);
 
-  useEffect(() => {
-    if (negativeBlocks.length > 0 && !negativePrompt) {
-      setNegativePrompt(negativeBlocks.map((b: any) => b.value).join(", "));
-    }
-  }, [negativeBlocks.length]);
+  // Negative prompt is user-opt-in only — no auto-fill
 
   return (
     <section className="space-y-4">
