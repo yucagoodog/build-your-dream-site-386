@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Download, Search, Copy, Trash2, Clock, DollarSign,
-  AlertCircle, Sparkles, Loader2, Filter, ImageIcon, Clapperboard, Play, RotateCcw, ZoomIn,
+  AlertCircle, Sparkles, Loader2, Filter, ImageIcon, Clapperboard, Play, RotateCcw, ZoomIn, FolderOpen,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -16,6 +16,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { downloadFile } from "@/lib/download";
+import { saveToDrive } from "@/lib/save-to-drive";
 import { formatDistanceToNow } from "date-fns";
 
 type LibraryItem = {
@@ -391,6 +392,7 @@ const LibraryPage = () => {
               <LibraryCard
                 key={item.id}
                 item={item}
+                userId={user!.id}
                 projectName={item.project_id ? projectMap.get(item.project_id) || null : null}
                 onCopyParams={() => handleCopyParams(item)}
                 onReEdit={() => handleReEdit(item)}
@@ -409,6 +411,7 @@ const LibraryPage = () => {
 
 function LibraryCard({
   item,
+  userId,
   projectName,
   onCopyParams,
   onReEdit,
@@ -418,6 +421,7 @@ function LibraryCard({
   onNavigateProject,
 }: {
   item: LibraryItem;
+  userId: string;
   projectName: string | null;
   onCopyParams: () => void;
   onReEdit: () => void;
@@ -587,14 +591,24 @@ function LibraryCard({
                 </Button>
               )}
               {item.type === "image" && item.output_image_url && (
-                <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={() => downloadFile(item.output_image_url!, `image-${item.id.slice(0,8)}.png`)}>
-                  <Download className="h-3 w-3" /> Download
-                </Button>
+                <>
+                  <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={() => saveToDrive(item.output_image_url!, userId)}>
+                    <FolderOpen className="h-3 w-3" /> Save to Drive
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={() => downloadFile(item.output_image_url!, `image-${item.id.slice(0,8)}.png`)}>
+                    <Download className="h-3 w-3" /> Download
+                  </Button>
+                </>
               )}
               {item.type === "video" && item.video_url && (
-                <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={() => downloadFile(item.video_url!, `video-${item.id.slice(0,8)}.mp4`)}>
-                  <Download className="h-3 w-3" /> Download
-                </Button>
+                <>
+                  <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={() => saveToDrive(item.video_url!, userId)}>
+                    <FolderOpen className="h-3 w-3" /> Save to Drive
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={() => downloadFile(item.video_url!, `video-${item.id.slice(0,8)}.mp4`)}>
+                    <Download className="h-3 w-3" /> Download
+                  </Button>
+                </>
               )}
               <Button
                 size="sm"

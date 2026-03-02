@@ -25,6 +25,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { downloadFile } from "@/lib/download";
+import { saveToDrive } from "@/lib/save-to-drive";
 import { IMAGE_SIZES } from "@/lib/image-sizes";
 import { formatDistanceToNow } from "date-fns";
 import { usePromptBlockPrefs } from "@/hooks/use-prompt-block-prefs";
@@ -59,6 +60,7 @@ const CreatePage = () => {
   const [generating, setGenerating] = useState(false);
   const [defaultsLoaded, setDefaultsLoaded] = useState(false);
   const [lastGeneratedId, setLastGeneratedId] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Image state
   const [slotImages, setSlotImages] = useState<(string | null)[]>([null, null, null, null]);
@@ -98,7 +100,7 @@ const CreatePage = () => {
       return data;
     },
     enabled: !!user,
-    staleTime: Infinity,
+    staleTime: 60_000,
   });
 
   useEffect(() => {
@@ -328,6 +330,7 @@ const CreatePage = () => {
   // Generate handlers
   const handleGenerateImage = async () => {
     if (filledSlots.length === 0 || !prompt.trim() || !user) return;
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     setGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke("generate-image", {
@@ -349,6 +352,7 @@ const CreatePage = () => {
 
   const handleGenerateVideo = async () => {
     if (!seedImageUrl || !prompt.trim() || !user) return;
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     setGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke("generate-video", {
@@ -372,6 +376,7 @@ const CreatePage = () => {
 
   const handleGenerateUpscale = async () => {
     if (!upscaleImageUrl || !user) return;
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     setGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke("upscale-image", {
@@ -388,30 +393,43 @@ const CreatePage = () => {
   };
 
   const pollImageEdit = (editId: string) => {
-    const poll = setInterval(async () => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    const interval = setInterval(async () => {
       try {
         const { data } = await supabase.functions.invoke("generate-image", { body: { action: "poll", edit_id: editId } });
         if (data?.status === "completed" || data?.status === "failed") {
-          clearInterval(poll);
+          clearInterval(interval);
+          if (pollRef.current === interval) pollRef.current = null;
           queryClient.invalidateQueries({ queryKey: ["recent_images"] });
+          queryClient.invalidateQueries({ queryKey: ["library_image_edits"] });
           toast({ title: data.status === "completed" ? "Complete!" : "Failed", description: data.error, variant: data.status === "failed" ? "destructive" : undefined });
         }
       } catch {}
     }, 4000);
+    pollRef.current = interval;
   };
 
   const pollVideoGen = (genId: string) => {
-    const poll = setInterval(async () => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    const interval = setInterval(async () => {
       try {
         const { data } = await supabase.functions.invoke("generate-video", { body: { action: "poll", generation_id: genId } });
         if (data?.status === "completed" || data?.status === "failed") {
-          clearInterval(poll);
+          clearInterval(interval);
+          if (pollRef.current === interval) pollRef.current = null;
           queryClient.invalidateQueries({ queryKey: ["recent_videos"] });
+          queryClient.invalidateQueries({ queryKey: ["library_video_gens"] });
           toast({ title: data.status === "completed" ? "Video ready!" : "Failed", description: data.error, variant: data.status === "failed" ? "destructive" : undefined });
         }
       } catch {}
     }, 4000);
+    pollRef.current = interval;
   };
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, []);
 
   const handleGenerate = () => {
     if (mode === "image") handleGenerateImage();
@@ -425,13 +443,7 @@ const CreatePage = () => {
     : mode === "video" ? !!seedImageUrl && prompt.trim().length > 0
     : !!upscaleImageUrl;
 
-  const recentResults = lastGeneratedId
-    ? (mode === "video" ? recentVideos : recentImages).filter((r: any) => {
-        if (mode === "upscale") return r.id === lastGeneratedId;
-        if (mode === "image") return r.id === lastGeneratedId;
-        return r.id === lastGeneratedId;
-      })
-    : [];
+  const recentResults = mode === "video" ? recentVideos : recentImages;
 
   return (
     <AppShell title="Create">
@@ -666,7 +678,7 @@ const CreatePage = () => {
           ) : (
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
               {recentResults.map((item: any) => (
-                <ResultCard key={item.id} item={item} mode={mode} />
+                <ResultCard key={item.id} item={item} mode={mode} userId={user!.id} />
               ))}
             </div>
           )}
@@ -826,7 +838,7 @@ function VideoPromptSection({ prompt, setPrompt, negativePrompt, setNegativeProm
   );
 }
 
-function ResultCard({ item, mode }: { item: any; mode: Mode }) {
+function ResultCard({ item, mode, userId }: { item: any; mode: Mode; userId: string }) {
   const statusColors: Record<string, string> = {
     completed: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20",
     processing: "bg-amber-500/15 text-amber-400 border-amber-500/20",
@@ -854,16 +866,32 @@ function ResultCard({ item, mode }: { item: any; mode: Mode }) {
         {promptText && <p className="text-[11px] text-muted-foreground line-clamp-2">{promptText}</p>}
 
         {isVideo && item.video_url && (
-          <video src={item.video_url} controls className="w-full rounded-lg" preload="metadata" />
+          <>
+            <video src={item.video_url} controls className="w-full rounded-lg" preload="metadata" />
+            <div className="flex gap-1.5 pt-1">
+              <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={() => saveToDrive(item.video_url!, userId)}>
+                <FolderOpen className="h-3 w-3" /> Save to Drive
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={() => downloadFile(item.video_url!, `video-${item.id.slice(0,8)}.mp4`)}>
+                <Download className="h-3 w-3" /> Download
+              </Button>
+            </div>
+          </>
         )}
 
         {!isVideo && item.output_image_url && (
           <div className="relative rounded-lg overflow-hidden bg-muted">
             <img src={item.output_image_url} alt="Output" className="w-full" loading="lazy" />
-            <button onClick={() => downloadFile(item.output_image_url!, `image-${item.id.slice(0,8)}.png`)}
-              className="absolute bottom-2 right-2 h-8 w-8 rounded-full bg-background/80 backdrop-blur flex items-center justify-center text-foreground hover:bg-background">
-              <Download className="h-4 w-4" />
-            </button>
+            <div className="absolute bottom-2 right-2 flex gap-1.5">
+              <button onClick={() => saveToDrive(item.output_image_url!, userId)}
+                className="h-8 w-8 rounded-full bg-background/80 backdrop-blur flex items-center justify-center text-foreground hover:bg-background" title="Save to My Images">
+                <FolderOpen className="h-4 w-4" />
+              </button>
+              <button onClick={() => downloadFile(item.output_image_url!, `image-${item.id.slice(0,8)}.png`)}
+                className="h-8 w-8 rounded-full bg-background/80 backdrop-blur flex items-center justify-center text-foreground hover:bg-background">
+                <Download className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         )}
 
