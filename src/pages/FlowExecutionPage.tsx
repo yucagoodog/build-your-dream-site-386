@@ -19,6 +19,7 @@ const STEP_ICONS: Record<string, any> = {
   image_generation: ImageIcon,
   video_generation: Clapperboard,
   image_upscale: ZoomIn,
+  image_overlay: ImageIcon,
 };
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
@@ -193,6 +194,24 @@ const FlowExecutionPage = () => {
         if (!editId) throw new Error("No edit ID returned");
 
         resultUrl = await pollForResult("upscale-image", { action: "poll", edit_id: editId }, "output_image_url");
+
+      } else if (stepType === "image_overlay") {
+        const overlayUrl = config.overlay_image_url;
+        if (!overlayUrl) throw new Error("No overlay image configured");
+        if (!inputUrl) throw new Error("No base image for overlay");
+
+        const { data, error } = await supabase.functions.invoke("composite-image", {
+          body: {
+            base_image_url: inputUrl,
+            overlay_image_url: overlayUrl,
+            opacity: config.opacity ?? 100,
+            scale: config.scale ?? 100,
+            position_x: config.position_x ?? 0,
+            position_y: config.position_y ?? 0,
+          },
+        });
+        if (error || data?.error) throw new Error(data?.error || error?.message || "Overlay failed");
+        resultUrl = data?.result_url;
       }
 
       if (!resultUrl) throw new Error("No output artifact produced");
