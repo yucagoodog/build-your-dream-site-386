@@ -4,21 +4,14 @@ import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import { Slider } from "@/components/ui/slider";
 import { Card, CardContent } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  X, Loader2, ChevronDown, Sparkles, Play, ImagePlus, Download,
-  Clock, DollarSign, AlertCircle, Upload, Clipboard,
-  Image as ImageIcon, Clapperboard, ZoomIn, Copy, RotateCcw, FolderOpen,
+  Loader2, Sparkles, Play, Download,
+  Clock, DollarSign, AlertCircle,
+  Image as ImageIcon, Clapperboard, ZoomIn, FolderOpen,
 } from "lucide-react";
-import { SeedImageDrive } from "@/components/SeedImageDrive";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -28,17 +21,15 @@ import { downloadFile } from "@/lib/download";
 import { saveToDrive } from "@/lib/save-to-drive";
 import { IMAGE_SIZES } from "@/lib/image-sizes";
 import { formatDistanceToNow } from "date-fns";
-// Prompt prefs no longer needed - new system uses structured pickers
+import {
+  ImageSourceSlots, SeedImageUpload,
+  ImagePromptSection, ImageParamsSection,
+  VideoPromptSection, VideoParamsSection,
+  UpscaleParamsSection,
+} from "@/components/generation/SharedGenerationUI";
 
 type Mode = "image" | "video" | "upscale";
 
-const MAX_IMAGES = 4;
-
-// Atlas Cloud pricing (per-second for video, flat for image/upscale)
-// Video Flash w/ audio:  $0.06/s (720p), $0.12/s (1080p)
-// Video Flash no audio:  $0.0175/s (720p), $0.0262/s (1080p)
-// Image Edit: $0.021 flat per run (regardless of image count)
-// Upscale: $0.01 flat per run
 function estimateVideoCost(resolution: string, duration: number, audio: boolean): number {
   const perSecond = audio
     ? (resolution === "1080p" ? 0.12 : 0.06)
@@ -64,9 +55,6 @@ const CreatePage = () => {
 
   // Image state
   const [slotImages, setSlotImages] = useState<(string | null)[]>([null, null, null, null]);
-  const [uploading, setUploading] = useState<number | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const activeSlotRef = useRef<number>(0);
   const [outputSize, setOutputSize] = useState("1280*1280");
   const [imageModel, setImageModel] = useState("alibaba/wan-2.6/image-edit");
   const [imgSeed, setImgSeed] = useState("");
@@ -75,8 +63,6 @@ const CreatePage = () => {
 
   // Video state
   const [seedImageUrl, setSeedImageUrl] = useState("");
-  const [imageUrlInput, setImageUrlInput] = useState("");
-  const [videoUploading, setVideoUploading] = useState(false);
   const [resolution, setResolution] = useState("720p");
   const [duration, setDuration] = useState(5);
   const [vidSeed, setVidSeed] = useState("");
@@ -84,12 +70,9 @@ const CreatePage = () => {
   const [shotType, setShotType] = useState("single");
   const [vidPromptExpansion, setVidPromptExpansion] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(false);
-  // selectedBlocks no longer needed with new prompt system
 
   // Upscale state
   const [upscaleImageUrl, setUpscaleImageUrl] = useState("");
-  const [upscaleUploading, setUpscaleUploading] = useState(false);
-  const upscaleFileRef = useRef<HTMLInputElement>(null);
   const [targetResolution, setTargetResolution] = useState("4k");
 
   // Load user defaults
@@ -170,7 +153,6 @@ const CreatePage = () => {
     enabled: !!user,
   });
 
-  // Group blocks by category
   const imgBlocksByCategory = imgBlocks.reduce((acc: Record<string, any[]>, b: any) => {
     if (!acc[b.category]) acc[b.category] = [];
     acc[b.category].push(b);
@@ -183,7 +165,7 @@ const CreatePage = () => {
     return acc;
   }, {});
 
-  // Recent results — only last 1 per mode
+  // Recent results
   const { data: recentImages = [] } = useQuery({
     queryKey: ["recent_images", user?.id],
     queryFn: async () => {
@@ -207,69 +189,6 @@ const CreatePage = () => {
   });
 
   const filledSlots = slotImages.filter(Boolean) as string[];
-
-  // Handlers
-  const handleSlotClick = (index: number) => { activeSlotRef.current = index; fileInputRef.current?.click(); };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
-    const slotIndex = activeSlotRef.current;
-    setUploading(slotIndex);
-    try {
-      const ext = file.name.split(".").pop();
-      const path = `${user.id}/create/${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from("seed-images").upload(path, file);
-      if (error) throw error;
-      const { data: urlData } = supabase.storage.from("seed-images").getPublicUrl(path);
-      setSlotImages((prev) => { const next = [...prev]; next[slotIndex] = urlData.publicUrl; return next; });
-    } catch (err: any) {
-      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
-    } finally {
-      setUploading(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
-
-  const removeSlot = (index: number) => setSlotImages((prev) => { const n = [...prev]; n[index] = null; return n; });
-
-  // Block toggle functions removed - new system uses structured pickers
-
-  const handleVideoUpload = async () => {
-    const input = document.createElement("input");
-    input.type = "file"; input.accept = "image/*";
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file || !user) return;
-      setVideoUploading(true);
-      const ext = file.name.split(".").pop();
-      const path = `${user.id}/create/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("seed-images").upload(path, file);
-      if (error) { toast({ title: "Upload failed", description: error.message, variant: "destructive" }); }
-      else { const { data } = supabase.storage.from("seed-images").getPublicUrl(path); setSeedImageUrl(data.publicUrl); }
-      setVideoUploading(false);
-    };
-    input.click();
-  };
-
-  const handleUpscaleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
-    setUpscaleUploading(true);
-    try {
-      const ext = file.name.split(".").pop();
-      const path = `${user.id}/create/${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from("seed-images").upload(path, file);
-      if (error) throw error;
-      const { data } = supabase.storage.from("seed-images").getPublicUrl(path);
-      setUpscaleImageUrl(data.publicUrl);
-    } catch (err: any) {
-      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
-    } finally {
-      setUpscaleUploading(false);
-      if (upscaleFileRef.current) upscaleFileRef.current.value = "";
-    }
-  };
 
   // Generate handlers
   const handleGenerateImage = async () => {
@@ -301,11 +220,9 @@ const CreatePage = () => {
     try {
       const { data, error } = await supabase.functions.invoke("generate-video", {
         body: {
-          action: "start",
-          prompt, negative_prompt: negativePrompt, seed_image_url: seedImageUrl,
+          action: "start", prompt, negative_prompt: negativePrompt, seed_image_url: seedImageUrl,
           resolution, duration, seed: vidRandomSeed ? -1 : parseInt(vidSeed) || -1,
-          shot_type: shotType, enable_prompt_expansion: vidPromptExpansion,
-          generate_audio: audioEnabled,
+          shot_type: shotType, enable_prompt_expansion: vidPromptExpansion, generate_audio: audioEnabled,
         },
       });
       if (error) throw new Error(error.message);
@@ -370,7 +287,6 @@ const CreatePage = () => {
     pollRef.current = interval;
   };
 
-  // Cleanup polling on unmount
   useEffect(() => {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, []);
@@ -391,9 +307,6 @@ const CreatePage = () => {
 
   return (
     <AppShell title="Create">
-      <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-      <input ref={upscaleFileRef} type="file" accept="image/*" className="hidden" onChange={handleUpscaleUpload} />
-
       <div className="lg:grid lg:grid-cols-[1fr,1fr] xl:grid-cols-[minmax(0,520px),1fr] lg:gap-0 lg:divide-x lg:divide-border min-h-[calc(100vh-3.5rem-5rem)]">
         {/* Left: Controls */}
         <div className="p-4 lg:p-6 lg:overflow-y-auto lg:max-h-[calc(100vh-3.5rem)] space-y-5">
@@ -406,43 +319,10 @@ const CreatePage = () => {
             </TabsList>
           </Tabs>
 
-          {/* ===== IMAGE MODE ===== */}
+          {/* IMAGE MODE */}
           {mode === "image" && (
             <>
-              <section>
-                <div className="flex items-center justify-between mb-2">
-                  <Label className="text-xs text-muted-foreground">Source Images ({filledSlots.length}/{MAX_IMAGES})</Label>
-                  <SeedImageDrive onSelect={(url) => {
-                    const emptyIdx = slotImages.findIndex((s) => !s);
-                    if (emptyIdx !== -1) setSlotImages((prev) => { const n = [...prev]; n[emptyIdx] = url; return n; });
-                    else toast({ title: "All slots full" });
-                  }} />
-                </div>
-                <div className="grid grid-cols-2 gap-2 lg:gap-3">
-                  {slotImages.map((url, i) => (
-                    <div key={i} className={cn("relative aspect-[4/3] lg:aspect-square rounded-lg border-2 border-dashed transition-all overflow-hidden group",
-                      url ? "border-border bg-muted" : "border-border/50 bg-surface-1 hover:border-primary/40 cursor-pointer"
-                    )} onClick={() => !url && handleSlotClick(i)}>
-                      {url ? (
-                        <>
-                          <img src={url} alt={`Image ${filledSlots.indexOf(url) + 1}`} className="w-full h-full object-cover" />
-                          <span className="absolute bottom-1.5 left-1.5 z-10 h-6 w-6 rounded-full bg-primary text-primary-foreground text-[11px] font-bold flex items-center justify-center shadow-md">{filledSlots.indexOf(url) + 1}</span>
-                          <button onClick={(e) => { e.stopPropagation(); removeSlot(i); }} className="absolute top-1.5 right-1.5 h-7 w-7 rounded-full bg-background/80 backdrop-blur flex items-center justify-center text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 lg:opacity-100">
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </>
-                      ) : uploading === i ? (
-                        <div className="flex items-center justify-center h-full"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center h-full gap-1.5">
-                          <ImagePlus className="h-6 w-6 text-muted-foreground/40" />
-                          <span className="text-[10px] text-muted-foreground/40">Add image</span>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </section>
+              <ImageSourceSlots slotImages={slotImages} setSlotImages={setSlotImages} />
               <Separator />
               <ImagePromptSection
                 prompt={prompt} setPrompt={setPrompt}
@@ -450,73 +330,20 @@ const CreatePage = () => {
                 blocksByCategory={imgBlocksByCategory}
               />
               <Separator />
-              <section className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-[10px] text-muted-foreground">Output Size</Label>
-                    <Select value={outputSize} onValueChange={setOutputSize}>
-                      <SelectTrigger className="bg-surface-1 h-9 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>{IMAGE_SIZES.map((s) => <SelectItem key={s.value} value={s.value} className="text-xs">{s.label}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[10px] text-muted-foreground">Model</Label>
-                    <Select value={imageModel} onValueChange={setImageModel}>
-                      <SelectTrigger className="bg-surface-1 h-9 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="alibaba/wan-2.6/image-edit" className="text-xs">WAN 2.6 Edit</SelectItem>
-                        <SelectItem value="alibaba/qwen-edit-plus" className="text-xs">Qwen Edit Plus</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                  <div className="flex items-center gap-2"><Switch checked={imgRandomSeed} onCheckedChange={setImgRandomSeed} /><Label className="text-xs">Random Seed</Label></div>
-                  {!imgRandomSeed && <Input type="number" placeholder="Seed" value={imgSeed} onChange={(e) => setImgSeed(e.target.value)} className="bg-surface-1 h-9 w-24 text-xs" />}
-                  <div className="flex items-center gap-2"><Switch checked={imgPromptExpansion} onCheckedChange={setImgPromptExpansion} /><Label className="text-xs">Expand</Label></div>
-                </div>
-              </section>
+              <ImageParamsSection
+                outputSize={outputSize} setOutputSize={setOutputSize}
+                imageModel={imageModel} setImageModel={setImageModel}
+                randomSeed={imgRandomSeed} setRandomSeed={setImgRandomSeed}
+                seed={imgSeed} setSeed={setImgSeed}
+                promptExpansion={imgPromptExpansion} setPromptExpansion={setImgPromptExpansion}
+              />
             </>
           )}
 
-          {/* ===== VIDEO MODE ===== */}
+          {/* VIDEO MODE */}
           {mode === "video" && (
             <>
-              <section>
-                <div className="flex items-center justify-between mb-2">
-                  <Label className="text-xs text-muted-foreground">Seed Image</Label>
-                  {!seedImageUrl && <SeedImageDrive onSelect={setSeedImageUrl} />}
-                </div>
-                {seedImageUrl ? (
-                  <div className="relative rounded-xl overflow-hidden bg-muted group">
-                    <img src={seedImageUrl} alt="Seed" className="w-full aspect-video object-cover" />
-                    <button onClick={() => setSeedImageUrl("")} className="absolute top-2 right-2 h-8 w-8 flex items-center justify-center rounded-full bg-background/80 backdrop-blur text-foreground opacity-0 group-hover:opacity-100 lg:opacity-100">
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-border/60 bg-surface-1/50 p-8 cursor-pointer hover:border-primary/40" onClick={handleVideoUpload}>
-                    <ImageIcon className="h-8 w-8 text-muted-foreground/40 mb-2" />
-                    <p className="text-xs text-muted-foreground">Click to upload seed image</p>
-                  </div>
-                )}
-                {!seedImageUrl && (
-                  <div className="flex gap-2 mt-2">
-                    <Button variant="outline" size="sm" className="flex-1" disabled={videoUploading} onClick={handleVideoUpload}>
-                      {videoUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Upload
-                    </Button>
-                    <Button variant="outline" size="sm" className="flex-1" onClick={async () => {
-                      try { const text = await navigator.clipboard.readText(); if (text.startsWith("http")) setSeedImageUrl(text); else toast({ title: "No URL in clipboard" }); } catch { toast({ title: "Clipboard denied" }); }
-                    }}><Clipboard className="h-4 w-4" /> Paste</Button>
-                  </div>
-                )}
-                {!seedImageUrl && (
-                  <div className="flex gap-2 mt-2">
-                    <Input placeholder="Paste image URL..." value={imageUrlInput} onChange={(e) => setImageUrlInput(e.target.value)} className="bg-surface-1 text-sm" />
-                    <Button size="sm" disabled={!imageUrlInput} onClick={() => { setSeedImageUrl(imageUrlInput); setImageUrlInput(""); }}>Add</Button>
-                  </div>
-                )}
-              </section>
+              <SeedImageUpload imageUrl={seedImageUrl} setImageUrl={setSeedImageUrl} />
               <Separator />
               <VideoPromptSection
                 prompt={prompt} setPrompt={setPrompt}
@@ -525,76 +352,23 @@ const CreatePage = () => {
                 duration={duration}
               />
               <Separator />
-              <section className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-[10px] text-muted-foreground">Resolution</Label>
-                    <Select value={resolution} onValueChange={setResolution}>
-                      <SelectTrigger className="bg-surface-1 h-9 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent><SelectItem value="720p">720p</SelectItem><SelectItem value="1080p">1080p</SelectItem></SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[10px] text-muted-foreground">Shot Type</Label>
-                    <Select value={shotType} onValueChange={setShotType}>
-                      <SelectTrigger className="bg-surface-1 h-9 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent><SelectItem value="single">Single</SelectItem><SelectItem value="multi">Multi</SelectItem></SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-[10px] text-muted-foreground">Duration</Label>
-                    <span className="text-xs text-muted-foreground font-mono">{duration}s</span>
-                  </div>
-                  <Slider value={[duration]} onValueChange={(v) => setDuration(v[0])} min={2} max={15} step={1} />
-                </div>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                  <div className="flex items-center gap-2"><Switch checked={vidRandomSeed} onCheckedChange={setVidRandomSeed} /><Label className="text-xs">Random Seed</Label></div>
-                  {!vidRandomSeed && <Input type="number" placeholder="Seed" value={vidSeed} onChange={(e) => setVidSeed(e.target.value)} className="bg-surface-1 h-9 w-24 text-xs font-mono" />}
-                  <div className="flex items-center gap-2"><Switch checked={vidPromptExpansion} onCheckedChange={setVidPromptExpansion} /><Label className="text-xs">Expand</Label></div>
-                  <div className="flex items-center gap-2"><Switch checked={audioEnabled} onCheckedChange={setAudioEnabled} /><Label className="text-xs">Audio</Label></div>
-                </div>
-              </section>
+              <VideoParamsSection
+                resolution={resolution} setResolution={setResolution}
+                shotType={shotType} setShotType={setShotType}
+                duration={duration} setDuration={setDuration}
+                randomSeed={vidRandomSeed} setRandomSeed={setVidRandomSeed}
+                seed={vidSeed} setSeed={setVidSeed}
+                promptExpansion={vidPromptExpansion} setPromptExpansion={setVidPromptExpansion}
+                audioEnabled={audioEnabled} setAudioEnabled={setAudioEnabled}
+              />
             </>
           )}
 
-          {/* ===== UPSCALE MODE ===== */}
+          {/* UPSCALE MODE */}
           {mode === "upscale" && (
             <>
-              <section>
-                <div className="flex items-center justify-between mb-2">
-                  <Label className="text-xs text-muted-foreground">Image to Upscale</Label>
-                  {!upscaleImageUrl && <SeedImageDrive onSelect={setUpscaleImageUrl} />}
-                </div>
-                {upscaleImageUrl ? (
-                  <div className="relative rounded-xl overflow-hidden bg-muted group">
-                    <img src={upscaleImageUrl} alt="Upscale source" className="w-full aspect-square object-cover" />
-                    <button onClick={() => setUpscaleImageUrl("")} className="absolute top-2 right-2 h-8 w-8 flex items-center justify-center rounded-full bg-background/80 backdrop-blur text-foreground opacity-0 group-hover:opacity-100 lg:opacity-100">
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-border/60 bg-surface-1/50 p-12 cursor-pointer hover:border-primary/40" onClick={() => upscaleFileRef.current?.click()}>
-                    {upscaleUploading ? <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /> : (
-                      <>
-                        <ZoomIn className="h-8 w-8 text-muted-foreground/40 mb-2" />
-                        <p className="text-xs text-muted-foreground">Click to upload image</p>
-                      </>
-                    )}
-                  </div>
-                )}
-              </section>
-              <section className="space-y-2">
-                <Label className="text-xs text-muted-foreground">Target Resolution</Label>
-                <Select value={targetResolution} onValueChange={setTargetResolution}>
-                  <SelectTrigger className="bg-surface-1 h-9 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="2k">2K</SelectItem>
-                    <SelectItem value="4k">4K</SelectItem>
-                  </SelectContent>
-                </Select>
-              </section>
+              <SeedImageUpload imageUrl={upscaleImageUrl} setImageUrl={setUpscaleImageUrl} label="Image to Upscale" />
+              <UpscaleParamsSection targetResolution={targetResolution} setTargetResolution={setTargetResolution} />
             </>
           )}
 
@@ -629,278 +403,13 @@ const CreatePage = () => {
   );
 };
 
-// Sub-components
-
-function ImagePromptSection({ prompt, setPrompt, negativePrompt, setNegativePrompt, blocksByCategory }: any) {
-  const [realismLevel, setRealismLevel] = useState<string>("off");
-  const [faceSwapOp, setFaceSwapOp] = useState<string>("none");
-  const [identityMode, setIdentityMode] = useState<string>("auto");
-
-  const realismBlocks = blocksByCategory["img_realism"] || [];
-  const faceSwapBlocks = blocksByCategory["img_face_swap"] || [];
-  const identityBlocks = blocksByCategory["img_identity"] || [];
-  const negativeBlocks = blocksByCategory["img_negative"] || [];
-
-  // Auto-apply realism to prompt when level changes
-  const applyRealism = useCallback((level: string) => {
-    setRealismLevel(level);
-    let cleaned = prompt;
-    realismBlocks.forEach((b: any) => { cleaned = cleaned.replace(b.value, "").replace(/\s{2,}/g, " ").trim(); });
-    const idx = level === "1" ? 0 : level === "2" ? 1 : level === "3" ? 2 : -1;
-    const block = idx >= 0 ? realismBlocks[idx] : null;
-    setPrompt(block ? (cleaned ? `${cleaned} ${block.value}` : block.value) : cleaned);
-  }, [prompt, realismBlocks]);
-
-  // Apply face swap operation
-  const applyFaceSwap = useCallback((op: string) => {
-    setFaceSwapOp(op);
-    let cleaned = prompt;
-    faceSwapBlocks.forEach((b: any) => { cleaned = cleaned.replace(b.value, "").replace(/\s{2,}/g, " ").trim(); });
-    const labelMap: Record<string, string> = { face_swap: "Face Swap", full_replace: "Full Person", reference: "Reference", add_person: "Add Person" };
-    const block = faceSwapBlocks.find((b: any) => labelMap[op] && b.label.includes(labelMap[op]));
-    setPrompt(block ? (cleaned ? `${block.value} ${cleaned}` : block.value) : cleaned);
-  }, [prompt, faceSwapBlocks]);
-
-  // Apply identity preservation
-  const applyIdentity = useCallback((mode: string) => {
-    setIdentityMode(mode);
-    let cleaned = prompt;
-    identityBlocks.forEach((b: any) => { cleaned = cleaned.replace(b.value, "").replace(/\s{2,}/g, " ").trim(); });
-    const block = mode === "auto" ? identityBlocks[0] : mode === "full" ? identityBlocks[1] : null;
-    setPrompt(block ? (cleaned ? `${block.value} ${cleaned}` : block.value) : cleaned);
-  }, [prompt, identityBlocks]);
-
-  // Auto-apply base negative on mount
-  useEffect(() => {
-    if (negativeBlocks[0] && !negativePrompt) {
-      setNegativePrompt(negativeBlocks[0].value);
-    }
-  }, [negativeBlocks.length]);
-
-  return (
-    <section className="space-y-4">
-      <div className="flex items-center justify-between">
-        <Label className="text-xs">Edit Prompt</Label>
-        <span className="text-[10px] text-muted-foreground">{prompt.length}/2000</span>
-      </div>
-      <Textarea placeholder="Describe the edit — what to change, how it should look..." value={prompt} onChange={(e: any) => setPrompt(e.target.value)} className="bg-surface-1 min-h-[100px]" maxLength={2000} />
-
-      {/* Realism Level */}
-      <div className="space-y-2">
-        <Label className="text-[11px] text-muted-foreground font-medium">Realism Level</Label>
-        <div className="grid grid-cols-4 gap-1.5">
-          {[
-            { key: "off", label: "Off" },
-            { key: "1", label: "Ad-Ready" },
-            { key: "2", label: "Magazine" },
-            { key: "3", label: "Premium" },
-          ].map((lvl) => (
-            <button key={lvl.key} onClick={() => applyRealism(lvl.key)}
-              className={cn("rounded-lg py-2.5 text-[11px] font-medium transition-colors min-h-[40px]",
-                realismLevel === lvl.key ? "bg-primary text-primary-foreground" : "bg-surface-1 text-muted-foreground hover:text-foreground")}>
-              {lvl.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Face/Body Swap Operation */}
-      <div className="space-y-2">
-        <Label className="text-[11px] text-muted-foreground font-medium">Swap Operation</Label>
-        <Select value={faceSwapOp} onValueChange={applyFaceSwap}>
-          <SelectTrigger className="bg-surface-1 h-10 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none" className="text-xs">None</SelectItem>
-            <SelectItem value="face_swap" className="text-xs">Face Swap (face only)</SelectItem>
-            <SelectItem value="full_replace" className="text-xs">Full Person Replace</SelectItem>
-            <SelectItem value="reference" className="text-xs">Reference-Based Scene</SelectItem>
-            <SelectItem value="add_person" className="text-xs">Add Person to Group</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Identity Preservation */}
-      <div className="space-y-2">
-        <Label className="text-[11px] text-muted-foreground font-medium">Identity Preservation</Label>
-        <div className="grid grid-cols-3 gap-1.5">
-          {[
-            { key: "off", label: "Off" },
-            { key: "auto", label: "Face" },
-            { key: "full", label: "Full Body" },
-          ].map((m) => (
-            <button key={m.key} onClick={() => applyIdentity(m.key)}
-              className={cn("rounded-lg py-2.5 text-[11px] font-medium transition-colors min-h-[40px]",
-                identityMode === m.key ? "bg-primary text-primary-foreground" : "bg-surface-1 text-muted-foreground hover:text-foreground")}>
-              {m.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Negative Prompt */}
-      <Collapsible>
-        <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 text-xs font-medium">
-          Negative Prompt<ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-        </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-2 pt-1">
-          <Textarea placeholder="What to avoid..." value={negativePrompt} onChange={(e: any) => setNegativePrompt(e.target.value)} className="bg-surface-1 min-h-[50px] text-sm" />
-          <div className="flex flex-wrap gap-1.5">
-            {negativeBlocks.map((b: any) => (
-              <button key={b.id} onClick={() => {
-                if (negativePrompt.includes(b.value)) setNegativePrompt(negativePrompt.replace(b.value, "").replace(/,\s*,/g, ",").replace(/^,\s*|,\s*$/g, "").trim());
-                else setNegativePrompt(negativePrompt ? `${negativePrompt}, ${b.value}` : b.value);
-              }}
-                className={cn("rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors",
-                  negativePrompt.includes(b.value) ? "bg-destructive/20 text-destructive" : "bg-surface-1 text-muted-foreground hover:bg-surface-2")}>
-                {b.label}
-              </button>
-            ))}
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
-    </section>
-  );
-}
-
-function VideoPromptSection({ prompt, setPrompt, negativePrompt, setNegativePrompt, blocksByCategory, duration }: any) {
-  const [realismLevel, setRealismLevel] = useState<string>("off");
-  const [motionRealism, setMotionRealism] = useState(true);
-  const [identityMode, setIdentityMode] = useState<string>("auto");
-
-  const realismBlocks = blocksByCategory["vid_realism"] || [];
-  const motionBlock = (blocksByCategory["vid_motion"] || [])[0];
-  const identityBlocks = blocksByCategory["vid_identity"] || [];
-  const negativeBlocks = blocksByCategory["vid_negative"] || [];
-
-  const applyRealism = useCallback((level: string) => {
-    setRealismLevel(level);
-    let cleaned = prompt;
-    realismBlocks.forEach((b: any) => { cleaned = cleaned.replace(b.value, "").replace(/\s{2,}/g, " ").trim(); });
-    const idx = level === "1" ? 0 : level === "2" ? 1 : level === "3" ? 2 : -1;
-    const block = idx >= 0 ? realismBlocks[idx] : null;
-    setPrompt(block ? (cleaned ? `${cleaned} ${block.value}` : block.value) : cleaned);
-  }, [prompt, realismBlocks]);
-
-  const toggleMotion = useCallback((on: boolean) => {
-    setMotionRealism(on);
-    if (!motionBlock) return;
-    let cleaned = prompt.replace(motionBlock.value, "").replace(/\s{2,}/g, " ").trim();
-    setPrompt(on ? (cleaned ? `${cleaned} ${motionBlock.value}` : motionBlock.value) : cleaned);
-  }, [prompt, motionBlock]);
-
-  const applyIdentity = useCallback((mode: string) => {
-    setIdentityMode(mode);
-    let cleaned = prompt;
-    identityBlocks.forEach((b: any) => { cleaned = cleaned.replace(b.value, "").replace(/\s{2,}/g, " ").trim(); });
-    let block: any = null;
-    if (mode === "auto") block = duration >= 10 ? identityBlocks[3] : identityBlocks[0];
-    else if (mode === "multi") block = identityBlocks[1];
-    else if (mode === "multi_shot") block = identityBlocks[2];
-    setPrompt(block ? (cleaned ? `${cleaned} ${block.value}` : block.value) : cleaned);
-  }, [prompt, identityBlocks, duration]);
-
-  // Auto-apply negatives on mount
-  useEffect(() => {
-    if (negativeBlocks.length > 0 && !negativePrompt) {
-      setNegativePrompt(negativeBlocks.map((b: any) => b.value).join(", "));
-    }
-  }, [negativeBlocks.length]);
-
-  return (
-    <section className="space-y-4">
-      <div className="flex items-center justify-between">
-        <Label className="text-xs">Scene Direction</Label>
-        <span className={cn("text-[10px] font-mono", prompt.length > 2000 ? "text-destructive" : "text-muted-foreground")}>{prompt.length}/2000</span>
-      </div>
-      <Textarea value={prompt} onChange={(e: any) => setPrompt(e.target.value)} className="bg-surface-1 min-h-[100px] text-sm" placeholder="Describe what happens — action, camera, mood, style..." />
-      <div className="flex gap-2">
-        <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(prompt); toast({ title: "Copied" }); }}><Copy className="h-3 w-3" /> Copy</Button>
-        <Button variant="outline" size="sm" onClick={() => { setPrompt(""); }}><RotateCcw className="h-3 w-3" /> Reset</Button>
-      </div>
-
-      {/* Realism Level */}
-      <div className="space-y-2">
-        <Label className="text-[11px] text-muted-foreground font-medium">Realism Level</Label>
-        <div className="grid grid-cols-4 gap-1.5">
-          {[
-            { key: "off", label: "Off" },
-            { key: "1", label: "Ad-Ready" },
-            { key: "2", label: "Magazine" },
-            { key: "3", label: "Premium" },
-          ].map((lvl) => (
-            <button key={lvl.key} onClick={() => applyRealism(lvl.key)}
-              className={cn("rounded-lg py-2.5 text-[11px] font-medium transition-colors min-h-[40px]",
-                realismLevel === lvl.key ? "bg-primary text-primary-foreground" : "bg-surface-1 text-muted-foreground hover:text-foreground")}>
-              {lvl.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Motion Realism Toggle */}
-      <div className="flex items-center justify-between rounded-lg bg-surface-1 px-3 py-3">
-        <div>
-          <Label className="text-xs font-medium">Motion Realism</Label>
-          <p className="text-[10px] text-muted-foreground">Natural motion, micro-expressions, physics</p>
-        </div>
-        <Switch checked={motionRealism} onCheckedChange={toggleMotion} />
-      </div>
-
-      {/* Identity Reinforcement */}
-      <div className="space-y-2">
-        <Label className="text-[11px] text-muted-foreground font-medium">Identity Reinforcement</Label>
-        <div className="grid grid-cols-4 gap-1.5">
-          {[
-            { key: "off", label: "Off" },
-            { key: "auto", label: "Single" },
-            { key: "multi", label: "Multi" },
-            { key: "multi_shot", label: "Shots" },
-          ].map((m) => (
-            <button key={m.key} onClick={() => applyIdentity(m.key)}
-              className={cn("rounded-lg py-2.5 text-[11px] font-medium transition-colors min-h-[40px]",
-                identityMode === m.key ? "bg-primary text-primary-foreground" : "bg-surface-1 text-muted-foreground hover:text-foreground")}>
-              {m.label}
-            </button>
-          ))}
-        </div>
-        {duration >= 10 && identityMode === "auto" && (
-          <p className="text-[10px] text-amber-400 flex items-center gap-1"><AlertCircle className="h-3 w-3" /> Duration ≥10s: extended identity lock applied</p>
-        )}
-      </div>
-
-      {/* Negative */}
-      <Collapsible>
-        <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 text-xs font-medium">
-          Negative Prompt<ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-        </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-2 pt-1">
-          <Textarea value={negativePrompt} onChange={(e: any) => setNegativePrompt(e.target.value)} className="bg-surface-1 min-h-[50px] text-sm" placeholder="What to avoid..." />
-          <div className="flex flex-wrap gap-1.5">
-            {negativeBlocks.map((b: any) => (
-              <button key={b.id} onClick={() => {
-                if (negativePrompt.includes(b.value)) setNegativePrompt(negativePrompt.replace(b.value, "").replace(/,\s*,/g, ",").replace(/^,\s*|,\s*$/g, "").trim());
-                else setNegativePrompt(negativePrompt ? `${negativePrompt}, ${b.value}` : b.value);
-              }}
-                className={cn("rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors",
-                  negativePrompt.includes(b.value) ? "bg-destructive/20 text-destructive" : "bg-surface-1 text-muted-foreground hover:bg-surface-2")}>
-                {b.label}
-              </button>
-            ))}
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
-    </section>
-  );
-}
-
 function ResultCard({ item, mode, userId }: { item: any; mode: Mode; userId: string }) {
   const statusColors: Record<string, string> = {
-    completed: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20",
-    processing: "bg-amber-500/15 text-amber-400 border-amber-500/20",
+    completed: "bg-[hsl(var(--status-completed))]/15 text-[hsl(var(--status-completed))] border-[hsl(var(--status-completed))]/20",
+    processing: "bg-[hsl(var(--status-processing))]/15 text-[hsl(var(--status-processing))] border-[hsl(var(--status-processing))]/20",
     failed: "bg-destructive/15 text-destructive border-destructive/20",
     queued: "bg-muted text-muted-foreground border-border",
   };
-
   const isVideo = mode === "video";
   const outputUrl = isVideo ? item.video_url : item.output_image_url;
   const promptText = isVideo ? item.prompt_used : item.prompt;
@@ -917,9 +426,7 @@ function ResultCard({ item, mode, userId }: { item: any; mode: Mode; userId: str
             <span className="flex items-center gap-0.5"><Clock className="h-3 w-3" />{formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}</span>
           </div>
         </div>
-
         {promptText && <p className="text-[11px] text-muted-foreground line-clamp-2">{promptText}</p>}
-
         {isVideo && item.video_url && (
           <>
             <video src={item.video_url} controls className="w-full rounded-lg" preload="metadata" />
@@ -933,7 +440,6 @@ function ResultCard({ item, mode, userId }: { item: any; mode: Mode; userId: str
             </div>
           </>
         )}
-
         {!isVideo && item.output_image_url && (
           <div className="relative rounded-lg overflow-hidden bg-muted">
             <img src={item.output_image_url} alt="Output" className="w-full" loading="lazy" />
@@ -949,7 +455,6 @@ function ResultCard({ item, mode, userId }: { item: any; mode: Mode; userId: str
             </div>
           </div>
         )}
-
         {item.status === "failed" && (item.error_message || item.error) && (
           <div className="flex items-start gap-1.5 text-[11px] text-destructive">
             <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />

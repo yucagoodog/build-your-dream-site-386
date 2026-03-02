@@ -4,24 +4,26 @@ import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
+import { Label } from "@/components/ui/label";
 import {
   ArrowLeft, Plus, Trash2, ChevronDown, ChevronRight, Play, Save,
-  Loader2, GripVertical, ImageIcon, Clapperboard, ZoomIn, ArrowDown,
+  Loader2, ImageIcon, Clapperboard, ZoomIn, ArrowDown,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { IMAGE_SIZES } from "@/lib/image-sizes";
+import {
+  ImageSourceSlots, SeedImageUpload,
+  ImagePromptSection, ImageParamsSection,
+  VideoPromptSection, VideoParamsSection,
+  UpscaleParamsSection,
+} from "@/components/generation/SharedGenerationUI";
 
 type StepType = "image_generation" | "video_generation" | "image_upscale";
 
@@ -31,32 +33,19 @@ const STEP_TYPE_META: Record<StepType, { label: string; icon: any; color: string
   image_upscale: { label: "Image Upscale", icon: ZoomIn, color: "text-emerald-400" },
 };
 
-interface StepConfig {
-  prompt?: string;
-  negative_prompt?: string;
-  output_size?: string;
-  model?: string;
-  seed?: number;
-  enable_prompt_expansion?: boolean;
-  resolution?: string;
-  duration?: number;
-  shot_type?: string;
-  generate_audio?: boolean;
-  target_resolution?: string;
-  creativity?: number;
-}
-
-const DEFAULT_CONFIGS: Record<StepType, StepConfig> = {
+const DEFAULT_CONFIGS: Record<StepType, any> = {
   image_generation: {
     prompt: "", negative_prompt: "", output_size: "1280*1280",
     model: "alibaba/wan-2.6/image-edit", seed: -1, enable_prompt_expansion: true,
+    source_image_urls: [null, null, null, null],
   },
   video_generation: {
     prompt: "", negative_prompt: "", resolution: "720p", duration: 5,
     shot_type: "single", seed: -1, enable_prompt_expansion: true, generate_audio: false,
+    seed_image_url: "",
   },
   image_upscale: {
-    target_resolution: "4k", creativity: 2,
+    target_resolution: "4k", creativity: 2, source_image_url: "",
   },
 };
 
@@ -99,6 +88,36 @@ const FlowBuilderPage = () => {
     enabled: !!flowId && !!user,
   });
 
+  // Prompt blocks for pickers
+  const { data: imgBlocks = [] } = useQuery({
+    queryKey: ["img_prompt_blocks"],
+    queryFn: async () => {
+      const { data } = await supabase.from("prompt_blocks").select("*").like("category", "img_%").order("sort_order");
+      return data || [];
+    },
+  });
+
+  const { data: vidBlocks = [] } = useQuery({
+    queryKey: ["vid_prompt_blocks"],
+    queryFn: async () => {
+      const { data } = await supabase.from("prompt_blocks").select("*").not("category", "like", "img_%").order("sort_order");
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  const imgBlocksByCategory = imgBlocks.reduce((acc: Record<string, any[]>, b: any) => {
+    if (!acc[b.category]) acc[b.category] = [];
+    acc[b.category].push(b);
+    return acc;
+  }, {});
+
+  const vidBlocksByCategory = vidBlocks.reduce((acc: Record<string, any[]>, b: any) => {
+    if (!acc[b.category]) acc[b.category] = [];
+    acc[b.category].push(b);
+    return acc;
+  }, {});
+
   const addStep = (type: StepType) => {
     const newStep = {
       id: `new-${Date.now()}`,
@@ -106,7 +125,7 @@ const FlowBuilderPage = () => {
       user_id: user!.id,
       step_number: localSteps.length + 1,
       step_type: type,
-      config: DEFAULT_CONFIGS[type],
+      config: { ...DEFAULT_CONFIGS[type] },
     };
     setLocalSteps((prev) => [...prev, newStep]);
     setDirty(true);
@@ -132,7 +151,7 @@ const FlowBuilderPage = () => {
   const updateStepType = (index: number, newType: StepType) => {
     setLocalSteps((prev) => {
       const next = [...prev];
-      next[index] = { ...next[index], step_type: newType, config: DEFAULT_CONFIGS[newType] };
+      next[index] = { ...next[index], step_type: newType, config: { ...DEFAULT_CONFIGS[newType] } };
       return next;
     });
     setDirty(true);
@@ -142,24 +161,16 @@ const FlowBuilderPage = () => {
     if (!user || !flowId) return;
     setSaving(true);
     try {
-      // Update flow name/desc
       await supabase.from("flows").update({ name: flowName, description: flowDesc } as any).eq("id", flowId);
-
-      // Delete existing steps and re-insert
       await supabase.from("flow_steps").delete().eq("flow_id", flowId);
-
       if (localSteps.length > 0) {
         const inserts = localSteps.map((s, i) => ({
-          flow_id: flowId,
-          user_id: user.id,
-          step_number: i + 1,
-          step_type: s.step_type,
-          config: s.config,
+          flow_id: flowId, user_id: user.id, step_number: i + 1,
+          step_type: s.step_type, config: s.config,
         }));
         const { error } = await supabase.from("flow_steps").insert(inserts as any);
         if (error) throw error;
       }
-
       queryClient.invalidateQueries({ queryKey: ["flow", flowId] });
       queryClient.invalidateQueries({ queryKey: ["flow_steps", flowId] });
       queryClient.invalidateQueries({ queryKey: ["flows"] });
@@ -168,48 +179,32 @@ const FlowBuilderPage = () => {
       setDirty(false);
     } catch (err: any) {
       toast({ title: "Save failed", description: err.message, variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   }, [user, flowId, flowName, flowDesc, localSteps, queryClient]);
 
   const handleStartRun = async (mode: "full_auto" | "step_by_step") => {
     if (!user || !flowId || localSteps.length === 0) return;
-    // Save first if dirty
     if (dirty) await handleSave();
     setStartingRun(true);
     try {
-      // Re-fetch saved steps to get real IDs
       const { data: savedSteps } = await supabase
         .from("flow_steps").select("*").eq("flow_id", flowId).order("step_number");
       if (!savedSteps || savedSteps.length === 0) throw new Error("No steps to run");
-
-      // Create execution
       const { data: exec, error: execErr } = await supabase
         .from("flow_executions")
         .insert({ flow_id: flowId, user_id: user.id, mode, status: "pending" } as any)
-        .select()
-        .single();
+        .select().single();
       if (execErr) throw execErr;
-
-      // Create step executions
       const stepExecs = savedSteps.map((s: any) => ({
-        execution_id: exec.id,
-        step_id: s.id,
-        user_id: user.id,
-        step_number: s.step_number,
-        status: "pending",
-        config_snapshot: s.config,
+        execution_id: exec.id, step_id: s.id, user_id: user.id,
+        step_number: s.step_number, status: "pending", config_snapshot: s.config,
       }));
       const { error: seErr } = await supabase.from("flow_step_executions").insert(stepExecs as any);
       if (seErr) throw seErr;
-
       navigate(`/flows/${flowId}/run/${exec.id}`);
     } catch (err: any) {
       toast({ title: "Failed to start", description: err.message, variant: "destructive" });
-    } finally {
-      setStartingRun(false);
-    }
+    } finally { setStartingRun(false); }
   };
 
   const loading = flowLoading || stepsLoading;
@@ -222,11 +217,9 @@ const FlowBuilderPage = () => {
         </button>
       }
       headerRight={
-        <div className="flex items-center gap-1.5">
-          <Button size="sm" variant="outline" onClick={handleSave} disabled={saving || !dirty} className="gap-1.5 h-8">
-            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Save
-          </Button>
-        </div>
+        <Button size="sm" variant="outline" onClick={handleSave} disabled={saving || !dirty} className="gap-1.5 h-8">
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Save
+        </Button>
       }
     >
       {loading ? (
@@ -245,8 +238,10 @@ const FlowBuilderPage = () => {
           <div className="space-y-1">
             {localSteps.map((step, idx) => (
               <div key={step.id}>
-                <StepCard
-                  step={step} index={idx} totalSteps={localSteps.length}
+                <FullStepCard
+                  step={step} index={idx}
+                  imgBlocksByCategory={imgBlocksByCategory}
+                  vidBlocksByCategory={vidBlocksByCategory}
                   onRemove={() => removeStep(idx)}
                   onUpdateConfig={(k, v) => updateStepConfig(idx, k, v)}
                   onUpdateType={(t) => updateStepType(idx, t)}
@@ -260,7 +255,7 @@ const FlowBuilderPage = () => {
             ))}
           </div>
 
-          {/* Add step */}
+          {/* Add step buttons */}
           <div className="flex gap-2">
             {(Object.keys(STEP_TYPE_META) as StepType[]).map((type) => {
               const meta = STEP_TYPE_META[type];
@@ -295,9 +290,11 @@ const FlowBuilderPage = () => {
   );
 };
 
-/* ── Step Card ── */
-function StepCard({ step, index, totalSteps, onRemove, onUpdateConfig, onUpdateType }: {
-  step: any; index: number; totalSteps: number;
+/* ── Full Step Card with complete generation UI ── */
+function FullStepCard({ step, index, imgBlocksByCategory, vidBlocksByCategory, onRemove, onUpdateConfig, onUpdateType }: {
+  step: any; index: number;
+  imgBlocksByCategory: Record<string, any[]>;
+  vidBlocksByCategory: Record<string, any[]>;
   onRemove: () => void;
   onUpdateConfig: (key: string, value: any) => void;
   onUpdateType: (type: StepType) => void;
@@ -306,6 +303,10 @@ function StepCard({ step, index, totalSteps, onRemove, onUpdateConfig, onUpdateT
   const meta = STEP_TYPE_META[step.step_type as StepType];
   const Icon = meta.icon;
   const config = step.config || {};
+
+  // Local state wrappers that sync to config
+  const setConfigPrompt = (v: string) => onUpdateConfig("prompt", v);
+  const setConfigNeg = (v: string) => onUpdateConfig("negative_prompt", v);
 
   return (
     <Card className="border-border/50">
@@ -330,7 +331,7 @@ function StepCard({ step, index, totalSteps, onRemove, onUpdateConfig, onUpdateT
         </div>
 
         <CollapsibleContent>
-          <CardContent className="pt-0 pb-4 px-3 space-y-3">
+          <CardContent className="pt-0 pb-4 px-3 space-y-4">
             {/* Type selector */}
             <div className="space-y-1">
               <Label className="text-[10px] text-muted-foreground">Step Type</Label>
@@ -350,100 +351,94 @@ function StepCard({ step, index, totalSteps, onRemove, onUpdateConfig, onUpdateT
               </p>
             )}
 
-            {/* Image Generation controls */}
+            {/* ── Image Generation: Full UI ── */}
             {step.step_type === "image_generation" && (
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <Label className="text-[10px] text-muted-foreground">Prompt</Label>
-                  <Textarea value={config.prompt || ""} onChange={(e) => onUpdateConfig("prompt", e.target.value)}
-                    className="bg-surface-1 min-h-[80px] text-xs" placeholder="Describe the edit..." />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[10px] text-muted-foreground">Negative Prompt</Label>
-                  <Input value={config.negative_prompt || ""} onChange={(e) => onUpdateConfig("negative_prompt", e.target.value)}
-                    className="bg-surface-1 text-xs h-9" placeholder="What to avoid..." />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <Label className="text-[10px] text-muted-foreground">Output Size</Label>
-                    <Select value={config.output_size || "1280*1280"} onValueChange={(v) => onUpdateConfig("output_size", v)}>
-                      <SelectTrigger className="bg-surface-1 h-9 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>{IMAGE_SIZES.map((s) => <SelectItem key={s.value} value={s.value} className="text-xs">{s.label}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[10px] text-muted-foreground">Model</Label>
-                    <Select value={config.model || "alibaba/wan-2.6/image-edit"} onValueChange={(v) => onUpdateConfig("model", v)}>
-                      <SelectTrigger className="bg-surface-1 h-9 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="alibaba/wan-2.6/image-edit" className="text-xs">WAN 2.6 Edit</SelectItem>
-                        <SelectItem value="alibaba/qwen-edit-plus" className="text-xs">Qwen Edit Plus</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2"><Switch checked={config.enable_prompt_expansion ?? true} onCheckedChange={(v) => onUpdateConfig("enable_prompt_expansion", v)} /><Label className="text-xs">Expand</Label></div>
-                </div>
+              <div className="space-y-4">
+                {index === 0 && (
+                  <ImageSourceSlots
+                    slotImages={config.source_image_urls || [null, null, null, null]}
+                    setSlotImages={(v) => {
+                      const val = typeof v === "function" ? v(config.source_image_urls || [null, null, null, null]) : v;
+                      onUpdateConfig("source_image_urls", val);
+                    }}
+                  />
+                )}
+                <Separator />
+                <ImagePromptSection
+                  prompt={config.prompt || ""}
+                  setPrompt={setConfigPrompt}
+                  negativePrompt={config.negative_prompt || ""}
+                  setNegativePrompt={setConfigNeg}
+                  blocksByCategory={imgBlocksByCategory}
+                />
+                <Separator />
+                <ImageParamsSection
+                  outputSize={config.output_size || "1280*1280"}
+                  setOutputSize={(v) => onUpdateConfig("output_size", v)}
+                  imageModel={config.model || "alibaba/wan-2.6/image-edit"}
+                  setImageModel={(v) => onUpdateConfig("model", v)}
+                  randomSeed={config.seed === -1 || config.seed === undefined}
+                  setRandomSeed={(v) => onUpdateConfig("seed", v ? -1 : 0)}
+                  seed={config.seed === -1 ? "" : String(config.seed || "")}
+                  setSeed={(v) => onUpdateConfig("seed", parseInt(v) || 0)}
+                  promptExpansion={config.enable_prompt_expansion ?? true}
+                  setPromptExpansion={(v) => onUpdateConfig("enable_prompt_expansion", v)}
+                />
               </div>
             )}
 
-            {/* Video Generation controls */}
+            {/* ── Video Generation: Full UI ── */}
             {step.step_type === "video_generation" && (
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <Label className="text-[10px] text-muted-foreground">Prompt</Label>
-                  <Textarea value={config.prompt || ""} onChange={(e) => onUpdateConfig("prompt", e.target.value)}
-                    className="bg-surface-1 min-h-[80px] text-xs" placeholder="Describe the motion..." />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[10px] text-muted-foreground">Negative Prompt</Label>
-                  <Input value={config.negative_prompt || ""} onChange={(e) => onUpdateConfig("negative_prompt", e.target.value)}
-                    className="bg-surface-1 text-xs h-9" placeholder="What to avoid..." />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <Label className="text-[10px] text-muted-foreground">Resolution</Label>
-                    <Select value={config.resolution || "720p"} onValueChange={(v) => onUpdateConfig("resolution", v)}>
-                      <SelectTrigger className="bg-surface-1 h-9 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent><SelectItem value="720p">720p</SelectItem><SelectItem value="1080p">1080p</SelectItem></SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[10px] text-muted-foreground">Shot Type</Label>
-                    <Select value={config.shot_type || "single"} onValueChange={(v) => onUpdateConfig("shot_type", v)}>
-                      <SelectTrigger className="bg-surface-1 h-9 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent><SelectItem value="single">Single</SelectItem><SelectItem value="multi">Multi</SelectItem></SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-[10px] text-muted-foreground">Duration</Label>
-                    <span className="text-xs text-muted-foreground font-mono">{config.duration || 5}s</span>
-                  </div>
-                  <Slider value={[config.duration || 5]} onValueChange={(v) => onUpdateConfig("duration", v[0])} min={2} max={15} step={1} />
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex items-center gap-2"><Switch checked={config.enable_prompt_expansion ?? true} onCheckedChange={(v) => onUpdateConfig("enable_prompt_expansion", v)} /><Label className="text-xs">Expand</Label></div>
-                  <div className="flex items-center gap-2"><Switch checked={config.generate_audio ?? false} onCheckedChange={(v) => onUpdateConfig("generate_audio", v)} /><Label className="text-xs">Audio</Label></div>
-                </div>
+              <div className="space-y-4">
+                {index === 0 && (
+                  <SeedImageUpload
+                    imageUrl={config.seed_image_url || ""}
+                    setImageUrl={(v) => onUpdateConfig("seed_image_url", v)}
+                  />
+                )}
+                <Separator />
+                <VideoPromptSection
+                  prompt={config.prompt || ""}
+                  setPrompt={setConfigPrompt}
+                  negativePrompt={config.negative_prompt || ""}
+                  setNegativePrompt={setConfigNeg}
+                  blocksByCategory={vidBlocksByCategory}
+                  duration={config.duration || 5}
+                />
+                <Separator />
+                <VideoParamsSection
+                  resolution={config.resolution || "720p"}
+                  setResolution={(v) => onUpdateConfig("resolution", v)}
+                  shotType={config.shot_type || "single"}
+                  setShotType={(v) => onUpdateConfig("shot_type", v)}
+                  duration={config.duration || 5}
+                  setDuration={(v) => onUpdateConfig("duration", v)}
+                  randomSeed={config.seed === -1 || config.seed === undefined}
+                  setRandomSeed={(v) => onUpdateConfig("seed", v ? -1 : 0)}
+                  seed={config.seed === -1 ? "" : String(config.seed || "")}
+                  setSeed={(v) => onUpdateConfig("seed", parseInt(v) || 0)}
+                  promptExpansion={config.enable_prompt_expansion ?? true}
+                  setPromptExpansion={(v) => onUpdateConfig("enable_prompt_expansion", v)}
+                  audioEnabled={config.generate_audio ?? false}
+                  setAudioEnabled={(v) => onUpdateConfig("generate_audio", v)}
+                />
               </div>
             )}
 
-            {/* Upscale controls */}
+            {/* ── Image Upscale: Full UI ── */}
             {step.step_type === "image_upscale" && (
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <Label className="text-[10px] text-muted-foreground">Target Resolution</Label>
-                  <Select value={config.target_resolution || "4k"} onValueChange={(v) => onUpdateConfig("target_resolution", v)}>
-                    <SelectTrigger className="bg-surface-1 h-9 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="2k">2K</SelectItem>
-                      <SelectItem value="4k">4K</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-4">
+                {index === 0 && (
+                  <SeedImageUpload
+                    imageUrl={config.source_image_url || ""}
+                    setImageUrl={(v) => onUpdateConfig("source_image_url", v)}
+                    label="Image to Upscale"
+                  />
+                )}
+                <UpscaleParamsSection
+                  targetResolution={config.target_resolution || "4k"}
+                  setTargetResolution={(v) => onUpdateConfig("target_resolution", v)}
+                />
               </div>
             )}
           </CardContent>
