@@ -10,7 +10,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Loader2, Sparkles, Play, Download,
   Clock, DollarSign, AlertCircle,
-  Image as ImageIcon, Clapperboard, ZoomIn, FolderOpen,
+  Image as ImageIcon, Clapperboard, ZoomIn, FolderOpen, Layers,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -25,10 +25,10 @@ import {
   ImageSourceSlots, SeedImageUpload,
   ImagePromptSection, ImageParamsSection,
   VideoPromptSection, VideoParamsSection,
-  UpscaleParamsSection,
+  UpscaleParamsSection, OverlayParamsSection,
 } from "@/components/generation/SharedGenerationUI";
 
-type Mode = "image" | "video" | "upscale";
+type Mode = "image" | "video" | "upscale" | "overlay";
 
 function estimateVideoCost(resolution: string, duration: number, audio: boolean): number {
   const perSecond = audio
@@ -74,6 +74,15 @@ const CreatePage = () => {
   // Upscale state
   const [upscaleImageUrl, setUpscaleImageUrl] = useState("");
   const [targetResolution, setTargetResolution] = useState("4k");
+
+  // Overlay state
+  const [overlayBaseUrl, setOverlayBaseUrl] = useState("");
+  const [overlayPngUrl, setOverlayPngUrl] = useState("");
+  const [overlayOpacity, setOverlayOpacity] = useState(100);
+  const [overlayScale, setOverlayScale] = useState(100);
+  const [overlayPosX, setOverlayPosX] = useState(0);
+  const [overlayPosY, setOverlayPosY] = useState(0);
+  const [overlayResultUrl, setOverlayResultUrl] = useState<string | null>(null);
 
   // Load user defaults
   const { data: userSettings } = useQuery({
@@ -253,6 +262,30 @@ const CreatePage = () => {
     } finally { setGenerating(false); }
   };
 
+  const handleGenerateOverlay = async () => {
+    if (!overlayBaseUrl || !overlayPngUrl || !user) return;
+    setGenerating(true);
+    setOverlayResultUrl(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("composite-image", {
+        body: {
+          base_image_url: overlayBaseUrl,
+          overlay_image_url: overlayPngUrl,
+          opacity: overlayOpacity,
+          scale: overlayScale,
+          position_x: overlayPosX,
+          position_y: overlayPosY,
+        },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      setOverlayResultUrl(data.result_url);
+      toast({ title: "Overlay complete!" });
+    } catch (err: any) {
+      toast({ title: "Overlay failed", description: err.message, variant: "destructive" });
+    } finally { setGenerating(false); }
+  };
+
   const pollImageEdit = (editId: string) => {
     if (pollRef.current) clearInterval(pollRef.current);
     const interval = setInterval(async () => {
@@ -294,6 +327,7 @@ const CreatePage = () => {
   const handleGenerate = () => {
     if (mode === "image") handleGenerateImage();
     else if (mode === "video") handleGenerateVideo();
+    else if (mode === "overlay") handleGenerateOverlay();
     else handleGenerateUpscale();
   };
 
@@ -301,6 +335,7 @@ const CreatePage = () => {
   const vidCost = estimateVideoCost(resolution, duration, audioEnabled);
   const canGenerate = mode === "image" ? filledSlots.length > 0 && prompt.trim().length > 0
     : mode === "video" ? !!seedImageUrl && prompt.trim().length > 0
+    : mode === "overlay" ? !!overlayBaseUrl && !!overlayPngUrl
     : !!upscaleImageUrl;
 
   const recentResults = mode === "video" ? recentVideos : recentImages;
@@ -313,9 +348,10 @@ const CreatePage = () => {
           {/* Mode Tabs */}
           <Tabs value={mode} onValueChange={(v) => setMode(v as Mode)} className="w-full">
             <TabsList className="w-full">
-              <TabsTrigger value="image" className="flex-1 gap-1.5"><ImageIcon className="h-3.5 w-3.5" />Image Edit</TabsTrigger>
+              <TabsTrigger value="image" className="flex-1 gap-1.5"><ImageIcon className="h-3.5 w-3.5" />Image</TabsTrigger>
               <TabsTrigger value="video" className="flex-1 gap-1.5"><Clapperboard className="h-3.5 w-3.5" />Video</TabsTrigger>
               <TabsTrigger value="upscale" className="flex-1 gap-1.5"><ZoomIn className="h-3.5 w-3.5" />Upscale</TabsTrigger>
+              <TabsTrigger value="overlay" className="flex-1 gap-1.5"><Layers className="h-3.5 w-3.5" />Overlay</TabsTrigger>
             </TabsList>
           </Tabs>
 
@@ -372,10 +408,26 @@ const CreatePage = () => {
             </>
           )}
 
+          {/* OVERLAY MODE */}
+          {mode === "overlay" && (
+            <>
+              <SeedImageUpload imageUrl={overlayBaseUrl} setImageUrl={setOverlayBaseUrl} label="Base Image" />
+              <Separator />
+              <SeedImageUpload imageUrl={overlayPngUrl} setImageUrl={setOverlayPngUrl} label="Overlay PNG" />
+              <Separator />
+              <OverlayParamsSection
+                opacity={overlayOpacity} setOpacity={setOverlayOpacity}
+                scale={overlayScale} setScale={setOverlayScale}
+                positionX={overlayPosX} setPositionX={setOverlayPosX}
+                positionY={overlayPosY} setPositionY={setOverlayPosY}
+              />
+            </>
+          )}
+
           {/* Generate Button */}
           <Button onClick={handleGenerate} disabled={!canGenerate || generating} className="w-full h-12 text-sm" size="lg">
             {generating ? <Loader2 className="animate-spin" /> : <Play className="h-4 w-4" />}
-            {mode === "image" ? `Generate · $${imgCost.toFixed(3)}` : mode === "video" ? `Generate · $${vidCost.toFixed(2)}` : `Upscale · $0.01`}
+            {mode === "image" ? `Generate · $${imgCost.toFixed(3)}` : mode === "video" ? `Generate · $${vidCost.toFixed(2)}` : mode === "overlay" ? "Composite" : `Upscale · $0.01`}
           </Button>
         </div>
 
@@ -383,9 +435,33 @@ const CreatePage = () => {
         <div className="p-4 lg:p-6 lg:overflow-y-auto lg:max-h-[calc(100vh-3.5rem)]">
           <Separator className="lg:hidden mb-5" />
           <h2 className="text-xs font-medium text-muted-foreground mb-3">
-            Last {mode === "video" ? "Video" : mode === "upscale" ? "Upscale" : "Image"}
+            Last {mode === "video" ? "Video" : mode === "upscale" ? "Upscale" : mode === "overlay" ? "Overlay" : "Image"}
           </h2>
-          {recentResults.length === 0 ? (
+
+          {/* Overlay result inline */}
+          {mode === "overlay" && overlayResultUrl ? (
+            <div className="space-y-3">
+              <div className="relative rounded-xl overflow-hidden bg-muted group">
+                <img src={overlayResultUrl} alt="Composited result" className="w-full" />
+                <div className="absolute bottom-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 lg:opacity-100 transition-opacity">
+                  <Button size="sm" variant="secondary" className="h-8 gap-1.5 text-[11px]" onClick={() => downloadFile(overlayResultUrl, "overlay-result.png")}>
+                    <Download className="h-3.5 w-3.5" /> Download
+                  </Button>
+                  <Button size="sm" variant="secondary" className="h-8 gap-1.5 text-[11px]" onClick={async () => {
+                    await saveToDrive(overlayResultUrl, user!.id);
+                    toast({ title: "Saved to Drive" });
+                  }}>
+                    <FolderOpen className="h-3.5 w-3.5" /> Save
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : mode === "overlay" ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <Layers className="h-10 w-10 text-muted-foreground/30 mb-3" />
+              <p className="text-xs text-muted-foreground">Upload a base image and overlay PNG, then composite</p>
+            </div>
+          ) : recentResults.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Sparkles className="h-10 w-10 text-muted-foreground/30 mb-3" />
               <p className="text-xs text-muted-foreground">No results yet</p>
