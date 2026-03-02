@@ -105,9 +105,12 @@ Deno.serve(async (req) => {
       );
 
       const generateResult = await generateRes.json();
+      console.log("Atlas upscale response:", JSON.stringify(generateResult));
       if (!generateRes.ok) {
+        const errMsg = generateResult?.message || generateResult?.error || generateResult?.data?.message || JSON.stringify(generateResult);
+        console.error("Atlas upscale error:", errMsg);
         return new Response(
-          JSON.stringify({ error: generateResult?.message || "Atlas Cloud API error" }),
+          JSON.stringify({ error: errMsg }),
           { status: generateRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }

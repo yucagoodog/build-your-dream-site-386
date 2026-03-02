@@ -187,11 +187,12 @@ const FlowExecutionPage = () => {
             creativity: config.creativity ?? 2,
           },
         });
-        if (error || data?.error) throw new Error(data?.error || error?.message);
+        const errMsg = data?.error || error?.message;
+        if (error || data?.error) throw new Error(errMsg || "Upscale failed");
         const editId = data?.edit?.id;
         if (!editId) throw new Error("No edit ID returned");
 
-        resultUrl = await pollForResult("generate-image", { action: "poll", edit_id: editId }, "output_image_url");
+        resultUrl = await pollForResult("upscale-image", { action: "poll", edit_id: editId }, "output_image_url");
       }
 
       if (!resultUrl) throw new Error("No output artifact produced");
