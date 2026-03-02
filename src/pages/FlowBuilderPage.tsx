@@ -49,6 +49,29 @@ const DEFAULT_CONFIGS: Record<StepType, any> = {
   },
 };
 
+function getStepDefaults(type: StepType, settings: any): any {
+  if (!settings) return { ...DEFAULT_CONFIGS[type] };
+  if (type === "image_generation") {
+    return {
+      ...DEFAULT_CONFIGS.image_generation,
+      output_size: settings.default_image_output_size || "1280*1280",
+      model: settings.default_image_model || "alibaba/wan-2.6/image-edit",
+      enable_prompt_expansion: settings.default_image_prompt_expansion ?? true,
+    };
+  }
+  if (type === "video_generation") {
+    return {
+      ...DEFAULT_CONFIGS.video_generation,
+      resolution: settings.default_resolution || "720p",
+      duration: settings.default_duration || 5,
+      shot_type: settings.default_shot_type || "single",
+      enable_prompt_expansion: settings.default_prompt_expansion ?? true,
+      generate_audio: settings.default_audio ?? false,
+    };
+  }
+  return { ...DEFAULT_CONFIGS[type] };
+}
+
 const FlowBuilderPage = () => {
   const { flowId } = useParams<{ flowId: string }>();
   const navigate = useNavigate();
@@ -72,6 +95,17 @@ const FlowBuilderPage = () => {
       return data;
     },
     enabled: !!flowId && !!user,
+  });
+
+  // Load user settings for defaults
+  const { data: userSettings } = useQuery({
+    queryKey: ["user_settings", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase.from("user_settings").select("*").eq("user_id", user!.id).maybeSingle();
+      return data;
+    },
+    enabled: !!user,
+    staleTime: 60_000,
   });
 
   // Load steps
@@ -125,7 +159,7 @@ const FlowBuilderPage = () => {
       user_id: user!.id,
       step_number: localSteps.length + 1,
       step_type: type,
-      config: { ...DEFAULT_CONFIGS[type] },
+      config: getStepDefaults(type, userSettings),
     };
     setLocalSteps((prev) => [...prev, newStep]);
     setDirty(true);
@@ -151,7 +185,7 @@ const FlowBuilderPage = () => {
   const updateStepType = (index: number, newType: StepType) => {
     setLocalSteps((prev) => {
       const next = [...prev];
-      next[index] = { ...next[index], step_type: newType, config: { ...DEFAULT_CONFIGS[newType] } };
+      next[index] = { ...next[index], step_type: newType, config: getStepDefaults(newType, userSettings) };
       return next;
     });
     setDirty(true);
