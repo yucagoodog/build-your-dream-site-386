@@ -92,7 +92,16 @@ const FlowExecutionPage = () => {
   const executeStep = useCallback(async (stepExec: any): Promise<boolean> => {
     if (!user) return false;
     const config = stepExec.config_snapshot || {};
-    const inputUrl = stepExec.input_artifact_url;
+    const stepType = stepExec.step_type || null;
+    const firstSourceImage = Array.isArray(config.source_image_urls)
+      ? config.source_image_urls.find((url: string | null) => Boolean(url))
+      : null;
+    const inputUrl =
+      stepExec.input_artifact_url ||
+      config.source_image_url ||
+      config.seed_image_url ||
+      firstSourceImage ||
+      null;
 
     // Mark step as running
     await supabase.from("flow_step_executions")
@@ -106,9 +115,14 @@ const FlowExecutionPage = () => {
     try {
       let resultUrl: string | null = null;
 
-      if (stepExec.step_type === "image_generation" || (config.model && !config.target_resolution && !config.resolution)) {
-        // Determine step type from config
-        const imageUrls = inputUrl ? [inputUrl] : [];
+      if (stepType === "image_generation" || (config.model && !config.target_resolution && !config.resolution)) {
+        const explicitSourceImages = Array.isArray(config.source_image_urls)
+          ? config.source_image_urls.filter((url: string | null) => Boolean(url))
+          : [];
+        const imageUrls = explicitSourceImages.length > 0
+          ? explicitSourceImages
+          : (inputUrl ? [inputUrl] : []);
+
         const { data, error } = await supabase.functions.invoke("generate-image", {
           body: {
             action: "start",
@@ -128,7 +142,7 @@ const FlowExecutionPage = () => {
         // Poll for completion
         resultUrl = await pollForResult("generate-image", { action: "poll", edit_id: editId }, "output_image_url");
 
-      } else if (stepExec.step_type === "video_generation" || config.resolution) {
+      } else if (stepType === "video_generation" || config.resolution) {
         const { data, error } = await supabase.functions.invoke("generate-video", {
           body: {
             action: "start",
@@ -149,7 +163,7 @@ const FlowExecutionPage = () => {
 
         resultUrl = await pollForResult("generate-video", { action: "poll", generation_id: genId }, "video_url");
 
-      } else if (stepExec.step_type === "image_upscale" || config.target_resolution) {
+      } else if (stepType === "image_upscale" || config.target_resolution) {
         if (!inputUrl) throw new Error("No input image for upscale");
         const { data, error } = await supabase.functions.invoke("upscale-image", {
           body: {
@@ -226,6 +240,15 @@ const FlowExecutionPage = () => {
   const runFullAuto = useCallback(async () => {
     setExecuting(true);
     for (let i = 0; i < stepExecs.length; i++) {
+      const { data: latestExec } = await supabase
+        .from("flow_executions")
+        .select("status")
+        .eq("id", execId!)
+        .single();
+      if (latestExec?.status === "failed" || latestExec?.status === "completed") {
+        break;
+      }
+
       const se = stepExecs[i];
       if (se.status === "completed") continue;
 
@@ -239,7 +262,7 @@ const FlowExecutionPage = () => {
           .single();
         inputUrl = prevStep?.output_artifact_url || null;
         if (!inputUrl) {
-          toast({ title: "Missing input", description: `Step ${i} has no output to chain`, variant: "destructive" });
+          toast({ title: "Missing input", description: `Step ${i + 1} has no output to chain`, variant: "destructive" });
           break;
         }
       }
