@@ -120,6 +120,181 @@ export type Database = {
           },
         ]
       }
+      flow_executions: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          current_step: number
+          flow_id: string
+          id: string
+          mode: string
+          started_at: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          current_step?: number
+          flow_id: string
+          id?: string
+          mode?: string
+          started_at?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          current_step?: number
+          flow_id?: string
+          id?: string
+          mode?: string
+          started_at?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flow_executions_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      flow_step_executions: {
+        Row: {
+          completed_at: string | null
+          config_snapshot: Json | null
+          created_at: string
+          error_message: string | null
+          execution_id: string
+          id: string
+          input_artifact_url: string | null
+          output_artifact_url: string | null
+          prompt_used: string | null
+          started_at: string | null
+          status: string
+          step_id: string
+          step_number: number
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          config_snapshot?: Json | null
+          created_at?: string
+          error_message?: string | null
+          execution_id: string
+          id?: string
+          input_artifact_url?: string | null
+          output_artifact_url?: string | null
+          prompt_used?: string | null
+          started_at?: string | null
+          status?: string
+          step_id: string
+          step_number?: number
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          config_snapshot?: Json | null
+          created_at?: string
+          error_message?: string | null
+          execution_id?: string
+          id?: string
+          input_artifact_url?: string | null
+          output_artifact_url?: string | null
+          prompt_used?: string | null
+          started_at?: string | null
+          status?: string
+          step_id?: string
+          step_number?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flow_step_executions_execution_id_fkey"
+            columns: ["execution_id"]
+            isOneToOne: false
+            referencedRelation: "flow_executions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flow_step_executions_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "flow_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      flow_steps: {
+        Row: {
+          config: Json | null
+          created_at: string
+          flow_id: string
+          id: string
+          step_number: number
+          step_type: string
+          user_id: string
+        }
+        Insert: {
+          config?: Json | null
+          created_at?: string
+          flow_id: string
+          id?: string
+          step_number?: number
+          step_type?: string
+          user_id: string
+        }
+        Update: {
+          config?: Json | null
+          created_at?: string
+          flow_id?: string
+          id?: string
+          step_number?: number
+          step_type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flow_steps_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      flows: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       generations: {
         Row: {
           atlas_result_url: string | null
