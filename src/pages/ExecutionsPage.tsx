@@ -2,14 +2,16 @@ import { useNavigate } from "react-router-dom";
 import { AppShell } from "@/components/AppShell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
-  Loader2, Workflow, Play, Check, X, Clock, ArrowDown, Download,
+  Loader2, Play, Check, X, Clock, Square, Trash2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
+import { toast } from "@/hooks/use-toast";
 
 const STATUS_META: Record<string, { icon: any; color: string; label: string }> = {
   pending: { icon: Clock, color: "text-muted-foreground", label: "Pending" },
@@ -21,6 +23,75 @@ const STATUS_META: Record<string, { icon: any; color: string; label: string }> =
 const ExecutionsPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const refreshRuns = () => {
+    queryClient.invalidateQueries({ queryKey: ["all_flow_executions", user?.id] });
+    queryClient.invalidateQueries({ queryKey: ["exec_step_summary", user?.id] });
+  };
+
+  const stopRun = async (executionId: string) => {
+    if (!user) return;
+    const now = new Date().toISOString();
+
+    const [{ error: execError }, { error: stepsError }] = await Promise.all([
+      supabase
+        .from("flow_executions")
+        .update({ status: "failed", completed_at: now } as any)
+        .eq("id", executionId)
+        .eq("user_id", user.id)
+        .in("status", ["pending", "running"]),
+      supabase
+        .from("flow_step_executions")
+        .update({ status: "failed", error_message: "Stopped by user", completed_at: now } as any)
+        .eq("execution_id", executionId)
+        .eq("user_id", user.id)
+        .in("status", ["pending", "running"]),
+    ]);
+
+    if (execError) {
+      toast({ title: "Could not stop run", description: execError.message, variant: "destructive" });
+      return;
+    }
+    if (stepsError) {
+      toast({ title: "Run stop partially applied", description: stepsError.message, variant: "destructive" });
+      return;
+    }
+
+    refreshRuns();
+    toast({ title: "Run stopped" });
+  };
+
+  const deleteRun = async (executionId: string) => {
+    if (!user) return;
+    const confirmed = window.confirm("Delete this run and its step history?");
+    if (!confirmed) return;
+
+    const { error: stepDeleteError } = await supabase
+      .from("flow_step_executions")
+      .delete()
+      .eq("execution_id", executionId)
+      .eq("user_id", user.id);
+
+    if (stepDeleteError) {
+      toast({ title: "Could not delete run", description: stepDeleteError.message, variant: "destructive" });
+      return;
+    }
+
+    const { error: execDeleteError } = await supabase
+      .from("flow_executions")
+      .delete()
+      .eq("id", executionId)
+      .eq("user_id", user.id);
+
+    if (execDeleteError) {
+      toast({ title: "Could not delete run", description: execDeleteError.message, variant: "destructive" });
+      return;
+    }
+
+    refreshRuns();
+    toast({ title: "Run deleted" });
+  };
 
   // Load all executions with flow names
   const { data: executions = [], isLoading } = useQuery({
@@ -136,9 +207,39 @@ const ExecutionsPage = () => {
                         </span>
                       </div>
                     </div>
-                    <Badge variant="outline" className="text-[9px] h-5 px-1.5 shrink-0 capitalize">
-                      {exec.mode === "full_auto" ? "Auto" : "Manual"}
-                    </Badge>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Badge variant="outline" className="text-[9px] h-5 px-1.5 capitalize">
+                        {exec.mode === "full_auto" ? "Auto" : "Manual"}
+                      </Badge>
+
+                      {(exec.status === "running" || exec.status === "pending") && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void stopRun(exec.id);
+                          }}
+                          aria-label="Stop run"
+                        >
+                          <Square className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void deleteRun(exec.id);
+                        }}
+                        aria-label="Delete run"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               );
