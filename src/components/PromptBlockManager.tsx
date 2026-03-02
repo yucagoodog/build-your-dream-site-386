@@ -249,13 +249,18 @@ function CustomPromptForm({ userId, pipeline, onCreated, onClose, allBlocks }: {
   const imgCategories = ["img_realism", "img_identity", "img_face_swap", "img_negative"];
   const vidCategories = ["vid_realism", "vid_motion", "vid_identity", "vid_negative", "template"];
   const baseCategories = pipeline === "image" ? imgCategories : vidCategories;
-  // Also include existing custom (non-prefixed) categories from the database
+  // Also include existing custom categories that belong to this pipeline
+  const pipelinePrefix = pipeline === "image" ? "img_" : "vid_";
   const existingCustomCategories = [...new Set(
-    allBlocks.filter((b: any) => !b.is_builtin && !isKnownPipelineCategory(b.category)).map((b: any) => b.category as string)
+    allBlocks.filter((b: any) => !b.is_builtin && !isKnownPipelineCategory(b.category) && b.category.startsWith(pipelinePrefix)).map((b: any) => b.category as string)
   )];
   const categories = [...baseCategories, ...existingCustomCategories.filter((c) => !baseCategories.includes(c))];
 
-  const resolvedCategory = category === "__custom__" ? customCategory.trim().toLowerCase().replace(/\s+/g, "_") : category;
+  // Auto-prefix custom category slugs with pipeline prefix so they stay in the right tab
+  const rawSlug = customCategory.trim().toLowerCase().replace(/\s+/g, "_");
+  const resolvedCategory = category === "__custom__"
+    ? (rawSlug.startsWith("img_") || rawSlug.startsWith("vid_") ? rawSlug : `${pipelinePrefix}${rawSlug}`)
+    : category;
 
   const handleCreate = async () => {
     if (!label.trim() || !value.trim() || !resolvedCategory) return;
@@ -407,11 +412,10 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
     }
   }, [catPrefs]);
 
-  // Custom (non-prefixed) categories show in both tabs
+  // Filter blocks by pipeline: img_* → image tab, everything else → video tab
   const filteredBlocks = blocks.filter((b: any) => {
-    if (!isKnownPipelineCategory(b.category)) return true; // custom categories → show in both tabs
     if (pipeline === "image") return b.category.startsWith("img_");
-    return !b.category.startsWith("img_"); // vid_*, template → video tab
+    return !b.category.startsWith("img_"); // vid_*, template, and legacy non-prefixed → video tab
   });
 
   const allCategories = [...new Set(filteredBlocks.map((b: any) => b.category))];
