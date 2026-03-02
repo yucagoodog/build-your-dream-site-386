@@ -320,7 +320,7 @@ const FlowExecutionPage = () => {
   return (
     <AppShell title={flow?.name || "Flow Run"}
       headerLeft={
-        <button onClick={() => navigate(`/flows/${flowId}`)} className="h-10 w-10 flex items-center justify-center rounded-lg active:bg-foreground/10 -ml-2">
+        <button onClick={() => navigate("/executions")} className="h-10 w-10 flex items-center justify-center rounded-lg active:bg-foreground/10 -ml-2">
           <ArrowLeft className="h-5 w-5" />
         </button>
       }
