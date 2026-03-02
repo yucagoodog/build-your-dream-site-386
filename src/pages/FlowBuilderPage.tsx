@@ -231,7 +231,7 @@ const FlowBuilderPage = () => {
       if (execErr) throw execErr;
       const stepExecs = savedSteps.map((s: any) => ({
         execution_id: exec.id, step_id: s.id, user_id: user.id,
-        step_number: s.step_number, step_type: s.step_type, status: "pending", config_snapshot: s.config,
+        step_number: s.step_number, status: "pending", config_snapshot: s.config,
       }));
       const { error: seErr } = await supabase.from("flow_step_executions").insert(stepExecs as any);
       if (seErr) throw seErr;
