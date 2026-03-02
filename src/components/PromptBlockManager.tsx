@@ -29,16 +29,13 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 const ALL_CATEGORY_LABELS: Record<string, string> = {
-  img_realism: "Realism", img_identity: "Identity Preserve", img_face_swap: "Face Swap",
-  img_lighting: "Lighting", img_scene: "Scene Edits", img_style: "Style & Film",
-  img_enhance: "Enhancement", img_skin: "Skin Quality", img_hair: "Hair Quality",
-  img_eyes: "Eye Quality", img_fabric: "Fabric & Clothing", img_camera: "Camera Presets",
-  img_optics: "Optical Physics", img_lighting_q: "Lighting Quality",
-  img_environment: "Environment & Scene", img_product: "Product & Object",
-  img_post: "Post-Processing", img_negative: "Image Negatives",
-  shot_type: "Shot Setup", camera: "Camera Movement", motion: "Subject Motion",
-  style: "Style & Mood", identity: "Identity Preserve", multi_char: "Multi-Character",
-  multi_shot: "Multi-Shot", super_prompt: "Super Prompt", negative: "Video Negatives",
+  // Image categories
+  img_realism: "Realism Levels", img_identity: "Identity Preserve", img_face_swap: "Face/Body Swap",
+  img_negative: "Image Negatives",
+  // Video categories
+  vid_realism: "Realism Levels", vid_motion: "Motion Realism", vid_identity: "Identity Reinforcement",
+  vid_negative: "Video Negatives",
+  // Legacy/custom
   template: "Templates",
 };
 
@@ -191,8 +188,8 @@ function CustomPromptForm({ userId, pipeline, onCreated, onClose }: { userId: st
   const [customCategory, setCustomCategory] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const imgCategories = ["img_realism", "img_identity", "img_lighting", "img_scene", "img_style", "img_enhance", "img_skin", "img_hair", "img_eyes", "img_camera", "img_post", "img_negative"];
-  const vidCategories = ["shot_setup", "camera", "motion", "style", "identity", "negative", "super_prompt", "template"];
+  const imgCategories = ["img_realism", "img_identity", "img_face_swap", "img_negative"];
+  const vidCategories = ["vid_realism", "vid_motion", "vid_identity", "vid_negative", "template"];
   const categories = pipeline === "image" ? imgCategories : vidCategories;
 
   const resolvedCategory = category === "__custom__" ? customCategory.trim().toLowerCase().replace(/\s+/g, "_") : category;

@@ -28,7 +28,7 @@ import { downloadFile } from "@/lib/download";
 import { saveToDrive } from "@/lib/save-to-drive";
 import { IMAGE_SIZES } from "@/lib/image-sizes";
 import { formatDistanceToNow } from "date-fns";
-import { usePromptBlockPrefs } from "@/hooks/use-prompt-block-prefs";
+// Prompt prefs no longer needed - new system uses structured pickers
 
 type Mode = "image" | "video" | "upscale";
 
@@ -84,7 +84,7 @@ const CreatePage = () => {
   const [shotType, setShotType] = useState("single");
   const [vidPromptExpansion, setVidPromptExpansion] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(false);
-  const [selectedBlocks, setSelectedBlocks] = useState<Set<string>>(new Set());
+  // selectedBlocks no longer needed with new prompt system
 
   // Upscale state
   const [upscaleImageUrl, setUpscaleImageUrl] = useState("");
@@ -170,41 +170,18 @@ const CreatePage = () => {
     enabled: !!user,
   });
 
-  const { applyPrefs, applyCategoryPrefs, isCategoryHidden } = usePromptBlockPrefs();
-
-  // Image blocks
-  const imgBlocksByCategory = applyPrefs(imgBlocks).reduce((acc: Record<string, any[]>, b: any) => {
+  // Group blocks by category
+  const imgBlocksByCategory = imgBlocks.reduce((acc: Record<string, any[]>, b: any) => {
     if (!acc[b.category]) acc[b.category] = [];
     acc[b.category].push(b);
     return acc;
   }, {});
-  const sortedImgCategories = applyCategoryPrefs(
-    Object.keys(imgBlocksByCategory).filter((c) => c !== "img_negative")
-  );
-  const imgCategoryLabels: Record<string, string> = {
-    img_realism: "Realism", img_identity: "Identity Preserve", img_face_swap: "Face Swap",
-    img_lighting: "Lighting", img_scene: "Scene Edits", img_style: "Style & Film",
-    img_enhance: "Enhancement", img_skin: "Skin Quality", img_hair: "Hair Quality",
-    img_eyes: "Eye Quality", img_fabric: "Fabric & Clothing", img_camera: "Camera Presets",
-    img_optics: "Optical Physics", img_lighting_q: "Lighting Quality",
-    img_environment: "Environment & Scene", img_product: "Product & Object", img_post: "Post-Processing",
-  };
 
-  // Video blocks
-  const vidBlocksByCategory = applyPrefs(vidBlocks).reduce((acc: Record<string, any[]>, b: any) => {
+  const vidBlocksByCategory = vidBlocks.reduce((acc: Record<string, any[]>, b: any) => {
     if (!acc[b.category]) acc[b.category] = [];
     acc[b.category].push(b);
     return acc;
   }, {});
-  const vidCategoryLabels: Record<string, string> = {
-    shot_setup: "Shot Setup", camera: "Camera Move", motion: "Subject Motion",
-    style: "Style & Mood", identity: "Identity Preserve",
-    multi_char: "Multi-Character", multi_shot: "Multi-Shot",
-  };
-  const sortedVidCategories = applyCategoryPrefs(
-    ["shot_setup", "camera", "motion", "style", "identity", "multi_char", "multi_shot"]
-      .filter((k) => (vidBlocksByCategory[k] || []).length > 0)
-  );
 
   // Recent results — only last 1 per mode
   const { data: recentImages = [] } = useQuery({
@@ -256,40 +233,7 @@ const CreatePage = () => {
 
   const removeSlot = (index: number) => setSlotImages((prev) => { const n = [...prev]; n[index] = null; return n; });
 
-  const toggleImgBlock = (value: string) => {
-    setPrompt((prev) => {
-      if (prev.includes(value)) return prev.replace(value, "").replace(/\s{2,}/g, " ").trim();
-      return prev ? `${prev} ${value}` : value;
-    });
-  };
-
-  const toggleVidBlock = (blockId: string, value: string) => {
-    setSelectedBlocks((prev) => {
-      const next = new Set(prev);
-      if (next.has(blockId)) {
-        next.delete(blockId);
-        setPrompt((p) => p.replace(` ${value}`, "").replace(`${value} `, "").replace(value, "").trim());
-      } else {
-        next.add(blockId);
-        setPrompt((p) => (p ? `${p} ${value}` : value));
-      }
-      return next;
-    });
-  };
-
-  const toggleNegativeBlock = (blockId: string, value: string) => {
-    setSelectedBlocks((prev) => {
-      const next = new Set(prev);
-      if (next.has(blockId)) {
-        next.delete(blockId);
-        setNegativePrompt((p) => p.replace(`, ${value}`, "").replace(`${value}, `, "").replace(value, "").trim());
-      } else {
-        next.add(blockId);
-        setNegativePrompt((p) => (p ? `${p}, ${value}` : value));
-      }
-      return next;
-    });
-  };
+  // Block toggle functions removed - new system uses structured pickers
 
   const handleVideoUpload = async () => {
     const input = document.createElement("input");
@@ -503,8 +447,7 @@ const CreatePage = () => {
               <ImagePromptSection
                 prompt={prompt} setPrompt={setPrompt}
                 negativePrompt={negativePrompt} setNegativePrompt={setNegativePrompt}
-                blocksByCategory={imgBlocksByCategory} sortedCategories={sortedImgCategories}
-                categoryLabels={imgCategoryLabels} toggleBlock={toggleImgBlock}
+                blocksByCategory={imgBlocksByCategory}
               />
               <Separator />
               <section className="space-y-3">
@@ -578,10 +521,8 @@ const CreatePage = () => {
               <VideoPromptSection
                 prompt={prompt} setPrompt={setPrompt}
                 negativePrompt={negativePrompt} setNegativePrompt={setNegativePrompt}
-                blocksByCategory={vidBlocksByCategory} sortedCategories={sortedVidCategories}
-                categoryLabels={vidCategoryLabels} selectedBlocks={selectedBlocks}
-                toggleBlock={toggleVidBlock} toggleNegativeBlock={toggleNegativeBlock}
-                isCategoryHidden={isCategoryHidden}
+                blocksByCategory={vidBlocksByCategory}
+                duration={duration}
               />
               <Separator />
               <section className="space-y-3">
@@ -690,144 +631,258 @@ const CreatePage = () => {
 
 // Sub-components
 
-function ImagePromptSection({ prompt, setPrompt, negativePrompt, setNegativePrompt, blocksByCategory, sortedCategories, categoryLabels, toggleBlock }: any) {
+function ImagePromptSection({ prompt, setPrompt, negativePrompt, setNegativePrompt, blocksByCategory }: any) {
+  const [realismLevel, setRealismLevel] = useState<string>("off");
+  const [faceSwapOp, setFaceSwapOp] = useState<string>("none");
+  const [identityMode, setIdentityMode] = useState<string>("auto");
+
+  const realismBlocks = blocksByCategory["img_realism"] || [];
+  const faceSwapBlocks = blocksByCategory["img_face_swap"] || [];
+  const identityBlocks = blocksByCategory["img_identity"] || [];
+  const negativeBlocks = blocksByCategory["img_negative"] || [];
+
+  // Auto-apply realism to prompt when level changes
+  const applyRealism = useCallback((level: string) => {
+    setRealismLevel(level);
+    let cleaned = prompt;
+    realismBlocks.forEach((b: any) => { cleaned = cleaned.replace(b.value, "").replace(/\s{2,}/g, " ").trim(); });
+    const idx = level === "1" ? 0 : level === "2" ? 1 : level === "3" ? 2 : -1;
+    const block = idx >= 0 ? realismBlocks[idx] : null;
+    setPrompt(block ? (cleaned ? `${cleaned} ${block.value}` : block.value) : cleaned);
+  }, [prompt, realismBlocks]);
+
+  // Apply face swap operation
+  const applyFaceSwap = useCallback((op: string) => {
+    setFaceSwapOp(op);
+    let cleaned = prompt;
+    faceSwapBlocks.forEach((b: any) => { cleaned = cleaned.replace(b.value, "").replace(/\s{2,}/g, " ").trim(); });
+    const labelMap: Record<string, string> = { face_swap: "Face Swap", full_replace: "Full Person", reference: "Reference", add_person: "Add Person" };
+    const block = faceSwapBlocks.find((b: any) => labelMap[op] && b.label.includes(labelMap[op]));
+    setPrompt(block ? (cleaned ? `${block.value} ${cleaned}` : block.value) : cleaned);
+  }, [prompt, faceSwapBlocks]);
+
+  // Apply identity preservation
+  const applyIdentity = useCallback((mode: string) => {
+    setIdentityMode(mode);
+    let cleaned = prompt;
+    identityBlocks.forEach((b: any) => { cleaned = cleaned.replace(b.value, "").replace(/\s{2,}/g, " ").trim(); });
+    const block = mode === "auto" ? identityBlocks[0] : mode === "full" ? identityBlocks[1] : null;
+    setPrompt(block ? (cleaned ? `${block.value} ${cleaned}` : block.value) : cleaned);
+  }, [prompt, identityBlocks]);
+
+  // Auto-apply base negative on mount
+  useEffect(() => {
+    if (negativeBlocks[0] && !negativePrompt) {
+      setNegativePrompt(negativeBlocks[0].value);
+    }
+  }, [negativeBlocks.length]);
+
   return (
-    <section className="space-y-3">
+    <section className="space-y-4">
       <div className="flex items-center justify-between">
         <Label className="text-xs">Edit Prompt</Label>
         <span className="text-[10px] text-muted-foreground">{prompt.length}/2000</span>
       </div>
-      <Textarea placeholder="Describe the edit..." value={prompt} onChange={(e: any) => setPrompt(e.target.value)} className="bg-surface-1 min-h-[80px]" maxLength={2000} />
-      {sortedCategories.map((category: string) => {
-        const blocks = blocksByCategory[category] || [];
-        if (blocks.length === 0) return null;
-        return (
-          <Collapsible key={category}>
-            <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 text-xs font-medium">
-              {categoryLabels[category] || category}<ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {blocks.map((b: any) => (
-                  <button key={b.id} onClick={() => toggleBlock(b.value)}
-                    className={cn("px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors",
-                      prompt.includes(b.value) ? "bg-primary text-primary-foreground border-primary" : "bg-surface-1 text-foreground border-border hover:border-primary/50")}>
-                    {b.label}
-                  </button>
-                ))}
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-        );
-      })}
+      <Textarea placeholder="Describe the edit — what to change, how it should look..." value={prompt} onChange={(e: any) => setPrompt(e.target.value)} className="bg-surface-1 min-h-[100px]" maxLength={2000} />
+
+      {/* Realism Level */}
+      <div className="space-y-2">
+        <Label className="text-[11px] text-muted-foreground font-medium">Realism Level</Label>
+        <div className="grid grid-cols-4 gap-1.5">
+          {[
+            { key: "off", label: "Off" },
+            { key: "1", label: "Ad-Ready" },
+            { key: "2", label: "Magazine" },
+            { key: "3", label: "Premium" },
+          ].map((lvl) => (
+            <button key={lvl.key} onClick={() => applyRealism(lvl.key)}
+              className={cn("rounded-lg py-2.5 text-[11px] font-medium transition-colors min-h-[40px]",
+                realismLevel === lvl.key ? "bg-primary text-primary-foreground" : "bg-surface-1 text-muted-foreground hover:text-foreground")}>
+              {lvl.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Face/Body Swap Operation */}
+      <div className="space-y-2">
+        <Label className="text-[11px] text-muted-foreground font-medium">Swap Operation</Label>
+        <Select value={faceSwapOp} onValueChange={applyFaceSwap}>
+          <SelectTrigger className="bg-surface-1 h-10 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none" className="text-xs">None</SelectItem>
+            <SelectItem value="face_swap" className="text-xs">Face Swap (face only)</SelectItem>
+            <SelectItem value="full_replace" className="text-xs">Full Person Replace</SelectItem>
+            <SelectItem value="reference" className="text-xs">Reference-Based Scene</SelectItem>
+            <SelectItem value="add_person" className="text-xs">Add Person to Group</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Identity Preservation */}
+      <div className="space-y-2">
+        <Label className="text-[11px] text-muted-foreground font-medium">Identity Preservation</Label>
+        <div className="grid grid-cols-3 gap-1.5">
+          {[
+            { key: "off", label: "Off" },
+            { key: "auto", label: "Face" },
+            { key: "full", label: "Full Body" },
+          ].map((m) => (
+            <button key={m.key} onClick={() => applyIdentity(m.key)}
+              className={cn("rounded-lg py-2.5 text-[11px] font-medium transition-colors min-h-[40px]",
+                identityMode === m.key ? "bg-primary text-primary-foreground" : "bg-surface-1 text-muted-foreground hover:text-foreground")}>
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Negative Prompt */}
       <Collapsible>
         <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 text-xs font-medium">
           Negative Prompt<ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
         </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-1.5 pt-1">
-          <Textarea placeholder="What to avoid..." value={negativePrompt} onChange={(e: any) => setNegativePrompt(e.target.value)} className="bg-surface-1 min-h-[50px]" />
-          {blocksByCategory["img_negative"] && (
-            <div className="flex gap-1.5 pt-1 flex-wrap">
-              {(blocksByCategory["img_negative"] as any[]).map((b: any) => (
-                <button key={b.id} onClick={() => setNegativePrompt(b.value)}
-                  className="px-2.5 py-1 rounded-full text-[11px] font-medium border bg-surface-1 text-foreground border-border hover:border-primary/50">
-                  {b.label}
-                </button>
-              ))}
-            </div>
-          )}
+        <CollapsibleContent className="space-y-2 pt-1">
+          <Textarea placeholder="What to avoid..." value={negativePrompt} onChange={(e: any) => setNegativePrompt(e.target.value)} className="bg-surface-1 min-h-[50px] text-sm" />
+          <div className="flex flex-wrap gap-1.5">
+            {negativeBlocks.map((b: any) => (
+              <button key={b.id} onClick={() => {
+                if (negativePrompt.includes(b.value)) setNegativePrompt(negativePrompt.replace(b.value, "").replace(/,\s*,/g, ",").replace(/^,\s*|,\s*$/g, "").trim());
+                else setNegativePrompt(negativePrompt ? `${negativePrompt}, ${b.value}` : b.value);
+              }}
+                className={cn("rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors",
+                  negativePrompt.includes(b.value) ? "bg-destructive/20 text-destructive" : "bg-surface-1 text-muted-foreground hover:bg-surface-2")}>
+                {b.label}
+              </button>
+            ))}
+          </div>
         </CollapsibleContent>
       </Collapsible>
     </section>
   );
 }
 
-function VideoPromptSection({ prompt, setPrompt, negativePrompt, setNegativePrompt, blocksByCategory, sortedCategories, categoryLabels, selectedBlocks, toggleBlock, toggleNegativeBlock, isCategoryHidden }: any) {
+function VideoPromptSection({ prompt, setPrompt, negativePrompt, setNegativePrompt, blocksByCategory, duration }: any) {
+  const [realismLevel, setRealismLevel] = useState<string>("off");
+  const [motionRealism, setMotionRealism] = useState(true);
+  const [identityMode, setIdentityMode] = useState<string>("auto");
+
+  const realismBlocks = blocksByCategory["vid_realism"] || [];
+  const motionBlock = (blocksByCategory["vid_motion"] || [])[0];
+  const identityBlocks = blocksByCategory["vid_identity"] || [];
+  const negativeBlocks = blocksByCategory["vid_negative"] || [];
+
+  const applyRealism = useCallback((level: string) => {
+    setRealismLevel(level);
+    let cleaned = prompt;
+    realismBlocks.forEach((b: any) => { cleaned = cleaned.replace(b.value, "").replace(/\s{2,}/g, " ").trim(); });
+    const idx = level === "1" ? 0 : level === "2" ? 1 : level === "3" ? 2 : -1;
+    const block = idx >= 0 ? realismBlocks[idx] : null;
+    setPrompt(block ? (cleaned ? `${cleaned} ${block.value}` : block.value) : cleaned);
+  }, [prompt, realismBlocks]);
+
+  const toggleMotion = useCallback((on: boolean) => {
+    setMotionRealism(on);
+    if (!motionBlock) return;
+    let cleaned = prompt.replace(motionBlock.value, "").replace(/\s{2,}/g, " ").trim();
+    setPrompt(on ? (cleaned ? `${cleaned} ${motionBlock.value}` : motionBlock.value) : cleaned);
+  }, [prompt, motionBlock]);
+
+  const applyIdentity = useCallback((mode: string) => {
+    setIdentityMode(mode);
+    let cleaned = prompt;
+    identityBlocks.forEach((b: any) => { cleaned = cleaned.replace(b.value, "").replace(/\s{2,}/g, " ").trim(); });
+    let block: any = null;
+    if (mode === "auto") block = duration >= 10 ? identityBlocks[3] : identityBlocks[0];
+    else if (mode === "multi") block = identityBlocks[1];
+    else if (mode === "multi_shot") block = identityBlocks[2];
+    setPrompt(block ? (cleaned ? `${cleaned} ${block.value}` : block.value) : cleaned);
+  }, [prompt, identityBlocks, duration]);
+
+  // Auto-apply negatives on mount
+  useEffect(() => {
+    if (negativeBlocks.length > 0 && !negativePrompt) {
+      setNegativePrompt(negativeBlocks.map((b: any) => b.value).join(", "));
+    }
+  }, [negativeBlocks.length]);
+
   return (
-    <section className="space-y-3">
+    <section className="space-y-4">
       <div className="flex items-center justify-between">
-        <Label className="text-xs">Prompt</Label>
+        <Label className="text-xs">Scene Direction</Label>
         <span className={cn("text-[10px] font-mono", prompt.length > 2000 ? "text-destructive" : "text-muted-foreground")}>{prompt.length}/2000</span>
       </div>
-      <Textarea value={prompt} onChange={(e: any) => setPrompt(e.target.value)} className="bg-surface-1 min-h-[80px] text-sm" placeholder="Build your prompt..." />
+      <Textarea value={prompt} onChange={(e: any) => setPrompt(e.target.value)} className="bg-surface-1 min-h-[100px] text-sm" placeholder="Describe what happens — action, camera, mood, style..." />
       <div className="flex gap-2">
         <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(prompt); toast({ title: "Copied" }); }}><Copy className="h-3 w-3" /> Copy</Button>
         <Button variant="outline" size="sm" onClick={() => { setPrompt(""); }}><RotateCcw className="h-3 w-3" /> Reset</Button>
       </div>
 
-      {/* Templates */}
-      {!isCategoryHidden("template") && (blocksByCategory["template"] || []).length > 0 && (
-        <Collapsible>
-          <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg bg-primary/10 px-3 py-2.5 text-xs font-medium text-primary">
-            ⚡ Quick Templates<ChevronDown className="h-3.5 w-3.5" />
-          </CollapsibleTrigger>
-          <CollapsibleContent className="pt-2">
-            <div className="flex flex-wrap gap-1.5">
-              {(blocksByCategory["template"] || []).map((b: any) => (
-                <button key={b.id} onClick={() => { try { const t = JSON.parse(b.value); setPrompt(t.positive || ""); setNegativePrompt(t.negative || ""); } catch {} }}
-                  className="rounded-md bg-primary/10 px-2.5 py-1.5 text-[11px] font-medium text-primary hover:bg-primary/20">{b.label}</button>
-              ))}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      )}
+      {/* Realism Level */}
+      <div className="space-y-2">
+        <Label className="text-[11px] text-muted-foreground font-medium">Realism Level</Label>
+        <div className="grid grid-cols-4 gap-1.5">
+          {[
+            { key: "off", label: "Off" },
+            { key: "1", label: "Ad-Ready" },
+            { key: "2", label: "Magazine" },
+            { key: "3", label: "Premium" },
+          ].map((lvl) => (
+            <button key={lvl.key} onClick={() => applyRealism(lvl.key)}
+              className={cn("rounded-lg py-2.5 text-[11px] font-medium transition-colors min-h-[40px]",
+                realismLevel === lvl.key ? "bg-primary text-primary-foreground" : "bg-surface-1 text-muted-foreground hover:text-foreground")}>
+              {lvl.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-      {sortedCategories.map((key: string) => (
-        <Collapsible key={key}>
-          <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg bg-surface-1 px-3 py-2.5 text-xs font-medium">
-            {categoryLabels[key] || key}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-muted-foreground">{(blocksByCategory[key] || []).length}</span>
-              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-            </div>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="pt-2">
-            <div className="flex flex-wrap gap-1.5">
-              {(blocksByCategory[key] || []).map((b: any) => (
-                <button key={b.id} onClick={() => toggleBlock(b.id, b.value)}
-                  className={cn("rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors",
-                    selectedBlocks.has(b.id) ? "bg-primary text-primary-foreground" : "bg-surface-2 text-muted-foreground hover:bg-surface-3")}>
-                  {b.label}
-                </button>
-              ))}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      ))}
+      {/* Motion Realism Toggle */}
+      <div className="flex items-center justify-between rounded-lg bg-surface-1 px-3 py-3">
+        <div>
+          <Label className="text-xs font-medium">Motion Realism</Label>
+          <p className="text-[10px] text-muted-foreground">Natural motion, micro-expressions, physics</p>
+        </div>
+        <Switch checked={motionRealism} onCheckedChange={toggleMotion} />
+      </div>
 
-      {/* Super Prompts */}
-      {!isCategoryHidden("super_prompt") && (blocksByCategory["super_prompt"] || []).length > 0 && (
-        <Collapsible>
-          <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg bg-accent/30 px-3 py-2.5 text-xs font-medium">
-            <span className="flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5" /> Super Prompts</span>
-            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-          </CollapsibleTrigger>
-          <CollapsibleContent className="pt-2">
-            <div className="flex flex-wrap gap-1.5">
-              {(blocksByCategory["super_prompt"] || []).map((b: any) => (
-                <button key={b.id} onClick={() => toggleBlock(b.id, b.value)}
-                  className={cn("rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors",
-                    selectedBlocks.has(b.id) ? "bg-accent text-accent-foreground ring-1 ring-accent-foreground/20" : "bg-surface-2 text-muted-foreground hover:bg-surface-3")}>
-                  {b.label}
-                </button>
-              ))}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      )}
+      {/* Identity Reinforcement */}
+      <div className="space-y-2">
+        <Label className="text-[11px] text-muted-foreground font-medium">Identity Reinforcement</Label>
+        <div className="grid grid-cols-4 gap-1.5">
+          {[
+            { key: "off", label: "Off" },
+            { key: "auto", label: "Single" },
+            { key: "multi", label: "Multi" },
+            { key: "multi_shot", label: "Shots" },
+          ].map((m) => (
+            <button key={m.key} onClick={() => applyIdentity(m.key)}
+              className={cn("rounded-lg py-2.5 text-[11px] font-medium transition-colors min-h-[40px]",
+                identityMode === m.key ? "bg-primary text-primary-foreground" : "bg-surface-1 text-muted-foreground hover:text-foreground")}>
+              {m.label}
+            </button>
+          ))}
+        </div>
+        {duration >= 10 && identityMode === "auto" && (
+          <p className="text-[10px] text-amber-400 flex items-center gap-1"><AlertCircle className="h-3 w-3" /> Duration ≥10s: extended identity lock applied</p>
+        )}
+      </div>
 
       {/* Negative */}
       <Collapsible>
         <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 text-xs font-medium">
           Negative Prompt<ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
         </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-1.5 pt-1">
+        <CollapsibleContent className="space-y-2 pt-1">
           <Textarea value={negativePrompt} onChange={(e: any) => setNegativePrompt(e.target.value)} className="bg-surface-1 min-h-[50px] text-sm" placeholder="What to avoid..." />
           <div className="flex flex-wrap gap-1.5">
-            {(blocksByCategory["negative"] || []).map((b: any) => (
-              <button key={b.id} onClick={() => toggleNegativeBlock(b.id, b.value)}
+            {negativeBlocks.map((b: any) => (
+              <button key={b.id} onClick={() => {
+                if (negativePrompt.includes(b.value)) setNegativePrompt(negativePrompt.replace(b.value, "").replace(/,\s*,/g, ",").replace(/^,\s*|,\s*$/g, "").trim());
+                else setNegativePrompt(negativePrompt ? `${negativePrompt}, ${b.value}` : b.value);
+              }}
                 className={cn("rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors",
-                  selectedBlocks.has(b.id) ? "bg-destructive/20 text-destructive" : "bg-surface-2 text-muted-foreground hover:bg-surface-3")}>
+                  negativePrompt.includes(b.value) ? "bg-destructive/20 text-destructive" : "bg-surface-1 text-muted-foreground hover:bg-surface-2")}>
                 {b.label}
               </button>
             ))}
