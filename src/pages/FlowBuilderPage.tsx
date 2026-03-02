@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import {
   ArrowLeft, Plus, Trash2, ChevronDown, ChevronRight, Play, Save,
-  Loader2, ImageIcon, Clapperboard, ZoomIn, ArrowDown,
+  Loader2, ImageIcon, Clapperboard, ZoomIn, ArrowDown, Layers,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -22,15 +22,16 @@ import {
   ImageSourceSlots, SeedImageUpload,
   ImagePromptSection, ImageParamsSection,
   VideoPromptSection, VideoParamsSection,
-  UpscaleParamsSection,
+  UpscaleParamsSection, OverlayParamsSection,
 } from "@/components/generation/SharedGenerationUI";
 
-type StepType = "image_generation" | "video_generation" | "image_upscale";
+type StepType = "image_generation" | "video_generation" | "image_upscale" | "image_overlay";
 
 const STEP_TYPE_META: Record<StepType, { label: string; icon: any; color: string }> = {
   image_generation: { label: "Image Generation", icon: ImageIcon, color: "text-blue-400" },
   video_generation: { label: "Video Generation", icon: Clapperboard, color: "text-purple-400" },
   image_upscale: { label: "Image Upscale", icon: ZoomIn, color: "text-emerald-400" },
+  image_overlay: { label: "Image Overlay", icon: Layers, color: "text-orange-400" },
 };
 
 const DEFAULT_CONFIGS: Record<StepType, any> = {
@@ -46,6 +47,10 @@ const DEFAULT_CONFIGS: Record<StepType, any> = {
   },
   image_upscale: {
     target_resolution: "4k", creativity: 2, source_image_url: "",
+  },
+  image_overlay: {
+    overlay_image_url: "", source_image_url: "",
+    opacity: 100, scale: 100, position_x: 0, position_y: 0,
   },
 };
 
@@ -361,7 +366,8 @@ function FullStepCard({ step, index, imgBlocksByCategory, vidBlocksByCategory, o
         <div className="flex items-center gap-2 p-3">
           <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center shrink-0",
             step.step_type === "image_generation" ? "bg-blue-500/10" :
-            step.step_type === "video_generation" ? "bg-purple-500/10" : "bg-emerald-500/10"
+            step.step_type === "video_generation" ? "bg-purple-500/10" :
+            step.step_type === "image_overlay" ? "bg-orange-500/10" : "bg-emerald-500/10"
           )}>
             <Icon className={cn("h-4 w-4", meta.color)} />
           </div>
@@ -485,6 +491,35 @@ function FullStepCard({ step, index, imgBlocksByCategory, vidBlocksByCategory, o
                 <UpscaleParamsSection
                   targetResolution={config.target_resolution || "4k"}
                   setTargetResolution={(v) => onUpdateConfig("target_resolution", v)}
+                />
+              </div>
+            )}
+
+            {/* ── Image Overlay: Full UI ── */}
+            {step.step_type === "image_overlay" && (
+              <div className="space-y-4">
+                {index === 0 && (
+                  <SeedImageUpload
+                    imageUrl={config.source_image_url || ""}
+                    setImageUrl={(v) => onUpdateConfig("source_image_url", v)}
+                    label="Base Image"
+                  />
+                )}
+                <SeedImageUpload
+                  imageUrl={config.overlay_image_url || ""}
+                  setImageUrl={(v) => onUpdateConfig("overlay_image_url", v)}
+                  label="Overlay PNG"
+                />
+                <Separator />
+                <OverlayParamsSection
+                  opacity={config.opacity ?? 100}
+                  setOpacity={(v) => onUpdateConfig("opacity", v)}
+                  scale={config.scale ?? 100}
+                  setScale={(v) => onUpdateConfig("scale", v)}
+                  positionX={config.position_x ?? 0}
+                  setPositionX={(v) => onUpdateConfig("position_x", v)}
+                  positionY={config.position_y ?? 0}
+                  setPositionY={(v) => onUpdateConfig("position_y", v)}
                 />
               </div>
             )}

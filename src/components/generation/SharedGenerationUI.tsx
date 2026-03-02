@@ -533,3 +533,51 @@ export function UpscaleParamsSection({
     </section>
   );
 }
+
+/* ─── Overlay Parameters ─── */
+export function OverlayParamsSection({
+  opacity, setOpacity,
+  scale, setScale,
+  positionX, setPositionX,
+  positionY, setPositionY,
+}: {
+  opacity: number; setOpacity: (v: number) => void;
+  scale: number; setScale: (v: number) => void;
+  positionX: number; setPositionX: (v: number) => void;
+  positionY: number; setPositionY: (v: number) => void;
+}) {
+  return (
+    <section className="space-y-3">
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <Label className="text-[10px] text-muted-foreground">Opacity</Label>
+          <span className="text-xs text-muted-foreground font-mono">{opacity}%</span>
+        </div>
+        <Slider value={[opacity]} onValueChange={(v) => setOpacity(v[0])} min={1} max={100} step={1} />
+      </div>
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <Label className="text-[10px] text-muted-foreground">Overlay Scale</Label>
+          <span className="text-xs text-muted-foreground font-mono">{scale}%</span>
+        </div>
+        <Slider value={[scale]} onValueChange={(v) => setScale(v[0])} min={10} max={200} step={5} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label className="text-[10px] text-muted-foreground">Position X</Label>
+            <span className="text-xs text-muted-foreground font-mono">{positionX}%</span>
+          </div>
+          <Slider value={[positionX]} onValueChange={(v) => setPositionX(v[0])} min={0} max={100} step={1} />
+        </div>
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label className="text-[10px] text-muted-foreground">Position Y</Label>
+            <span className="text-xs text-muted-foreground font-mono">{positionY}%</span>
+          </div>
+          <Slider value={[positionY]} onValueChange={(v) => setPositionY(v[0])} min={0} max={100} step={1} />
+        </div>
+      </div>
+    </section>
+  );
+}
