@@ -1,40 +1,41 @@
 
 
-## Problem
+## PNG Overlay Compositing Step
 
-When you create a custom prompt block with a new category (e.g. "special"), it doesn't appear in the Prompt Library UI because of two issues:
+### What it does
+A new flow step type called **"Image Overlay"** that takes a base image (from previous step output or uploaded seed) and composites a transparent PNG overlay on top, producing a single merged image.
 
-1. **Pipeline filtering is too strict** (line 396-398): Categories are split by checking `cat.startsWith("img_")`. Any custom category that doesn't start with `img_` (like "special") only shows in the Video tab. And custom categories that don't start with `vid_` or match hardcoded video categories just get lumped into video by default.
+### How it works
+Since this is pure image compositing (no AI model needed), we can do it entirely in a **backend function** using canvas rendering:
 
-2. **Category labels are lost on reload** (line 248): When creating a custom category, `ALL_CATEGORY_LABELS[resolvedCategory]` is set in memory, but this is a module-level constant -- it resets when the component remounts.
+1. **New Edge Function: `composite-image`**
+   - Accepts `base_image_url` and `overlay_image_url`
+   - Optional params: overlay position (x, y), scale, opacity
+   - Uses Deno's image libraries to composite the overlay PNG onto the base image
+   - Uploads the result to the `seed-images` storage bucket and returns the public URL
+   - No Atlas API key needed — this is pure server-side image processing
 
-3. **Custom category form options are limited** (line 238-240): The "Add Custom" form only offers hardcoded `img_*` or `vid_*` categories plus "template". A user-created category like "special" won't appear as an option for future blocks.
+2. **New Step Type in Flow Builder**
+   - Add `"image_overlay"` to `StepType` and `STEP_TYPE_META` (icon: `Layers`, color: orange)
+   - Config: `overlay_image_url` (the transparent PNG to place on top), plus optional `position`, `scale`, `opacity`
+   - For step index 0: show a `SeedImageUpload` for the base image
+   - For step index > 0: base image comes from previous step's output
+   - Always show an overlay image uploader (separate `SeedImageUpload` labeled "Overlay PNG")
 
-## Plan
+3. **Flow Execution Support**
+   - Add an `image_overlay` branch in `FlowExecutionPage.tsx`'s `executeStep` that calls `composite-image` edge function
+   - The function returns the composited image URL immediately (no polling needed, since it's not an async AI task) — but we can use the same start/poll pattern for consistency
 
-### 1. Fix pipeline filtering to include custom user blocks
+4. **UI Components** (in `SharedGenerationUI.tsx`)
+   - Add an `OverlayParamsSection` with opacity slider (0-100%) and optional position controls
 
-Change the `filteredBlocks` logic to classify blocks into image/video properly:
-- `img_*` categories → image pipeline
-- `vid_*`, `template` categories → video pipeline  
-- **Any other category** (user-created) → show in **both** pipeline tabs, or determine based on context
+### Files to create/modify
+- **Create**: `supabase/functions/composite-image/index.ts` — edge function for server-side compositing
+- **Modify**: `src/pages/FlowBuilderPage.tsx` — add `image_overlay` step type, config defaults, and UI
+- **Modify**: `src/pages/FlowExecutionPage.tsx` — add execution branch for `image_overlay`
+- **Modify**: `src/components/generation/SharedGenerationUI.tsx` — add `OverlayParamsSection`
+- **Modify**: `supabase/config.toml` — add `[functions.composite-image]` with `verify_jwt = false`
 
-The simplest approach: show user-created blocks (where `is_builtin === false` and category doesn't match known prefixes) in the **currently active pipeline tab**, so they always appear.
-
-### 2. Derive display labels from category slugs
-
-Instead of relying on `ALL_CATEGORY_LABELS` for custom categories, add a fallback that converts slugs to title case (e.g. `special` → `Special`, `my_templates` → `My Templates`). This already partially works at line 208 (`ALL_CATEGORY_LABELS[category] || category`), but the raw slug isn't user-friendly.
-
-### 3. Include existing custom categories in the "Add Custom" form
-
-When building the category dropdown in `CustomPromptForm`, also include any existing user-created categories from the blocks data so users can add more blocks to their custom categories.
-
-### Technical Details
-
-**File: `src/components/PromptBlockManager.tsx`**
-
-- **Line 31-40**: Add a helper function `formatCategoryLabel(slug)` that converts `snake_case` to `Title Case`.
-- **Line 208**: Use the new helper instead of raw fallback.
-- **Line 394-398**: Change `filteredBlocks` filter to also include blocks whose category doesn't match any known prefix (custom categories) regardless of pipeline.
-- **Line 238-240**: In `CustomPromptForm`, scan existing blocks to find user-created categories and add them to the dropdown options.
+### Technical detail
+The edge function will use the `ImageScript` Deno library (available via esm.sh) to decode both PNGs, composite the overlay at the specified position/opacity, encode the result, and upload to storage.
 
