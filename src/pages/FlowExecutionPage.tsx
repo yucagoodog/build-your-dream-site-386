@@ -223,11 +223,19 @@ const FlowExecutionPage = () => {
       const se = stepExecs[i];
       if (se.status === "completed") continue;
 
-      // Wire input from previous step
-      const inputUrl = i === 0 ? null : stepExecs[i - 1].output_artifact_url;
-      if (i > 0 && !inputUrl) {
-        toast({ title: "Missing input", description: `Step ${i} has no output to chain`, variant: "destructive" });
-        break;
+      // Wire input from previous step — read fresh from DB to avoid stale closure
+      let inputUrl: string | null = null;
+      if (i > 0) {
+        const { data: prevStep } = await supabase
+          .from("flow_step_executions")
+          .select("output_artifact_url")
+          .eq("id", stepExecs[i - 1].id)
+          .single();
+        inputUrl = prevStep?.output_artifact_url || null;
+        if (!inputUrl) {
+          toast({ title: "Missing input", description: `Step ${i} has no output to chain`, variant: "destructive" });
+          break;
+        }
       }
 
       if (inputUrl) {
@@ -260,12 +268,21 @@ const FlowExecutionPage = () => {
     setExecuting(true);
 
     const idx = stepExecs.indexOf(nextStep);
-    const inputUrl = idx === 0 ? null : stepExecs[idx - 1].output_artifact_url;
 
-    if (idx > 0 && !inputUrl) {
-      toast({ title: "Missing input", description: "Previous step hasn't completed", variant: "destructive" });
-      setExecuting(false);
-      return;
+    // Read fresh from DB to avoid stale closure data
+    let inputUrl: string | null = null;
+    if (idx > 0) {
+      const { data: prevStep } = await supabase
+        .from("flow_step_executions")
+        .select("output_artifact_url")
+        .eq("id", stepExecs[idx - 1].id)
+        .single();
+      inputUrl = prevStep?.output_artifact_url || null;
+      if (!inputUrl) {
+        toast({ title: "Missing input", description: "Previous step hasn't completed", variant: "destructive" });
+        setExecuting(false);
+        return;
+      }
     }
 
     if (inputUrl) {
