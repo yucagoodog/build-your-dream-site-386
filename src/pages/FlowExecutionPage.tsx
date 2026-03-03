@@ -130,7 +130,7 @@ const FlowExecutionPage = () => {
     try {
       let resultUrl: string | null = null;
 
-      if (stepType === "image_generation" || (config.model && !config.target_resolution && !config.resolution)) {
+      if (stepType === "image_generation") {
         const explicitSourceImages = Array.isArray(config.source_image_urls)
           ? config.source_image_urls.filter((url: string | null) => Boolean(url))
           : [];
@@ -157,7 +157,7 @@ const FlowExecutionPage = () => {
         // Poll for completion
         resultUrl = await pollForResult("generate-image", { action: "poll", edit_id: editId }, "output_image_url");
 
-      } else if (stepType === "video_generation" || config.resolution) {
+      } else if (stepType === "video_generation") {
         const { data, error } = await supabase.functions.invoke("generate-video", {
           body: {
             action: "start",
