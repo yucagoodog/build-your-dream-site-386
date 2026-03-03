@@ -461,7 +461,7 @@ const FlowExecutionPage = () => {
                   {/* Artifact preview */}
                   {se.output_artifact_url && (
                     <div className="relative rounded-lg overflow-hidden bg-muted group">
-                      {se.config_snapshot?.resolution || se.config_snapshot?.generate_audio !== undefined ? (
+                      {se.step_type === "video_generation" ? (
                         <video src={se.output_artifact_url} controls className="w-full aspect-video" />
                       ) : (
                         <img src={se.output_artifact_url} alt={`Step ${se.step_number} output`} className="w-full aspect-square object-cover" />
