@@ -1,12 +1,13 @@
-import { Sparkles, Library, Settings, Workflow, Play } from "lucide-react";
+import { Sparkles, Library, Settings, Workflow, Play, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocation, useNavigate } from "react-router-dom";
 
 const tabs = [
   { path: "/", label: "Create", icon: Sparkles },
   { path: "/library", label: "Library", icon: Library },
-  { path: "/flows", label: "Flows", icon: Workflow },
-  { path: "/executions", label: "Runs", icon: Play },
+  { path: "/flows", label: "Build", icon: Workflow },
+  { path: "/runner", label: "Run", icon: Play },
+  { path: "/executions", label: "Running", icon: Activity },
   { path: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -21,7 +22,7 @@ export function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/95 backdrop-blur-lg safe-bottom">
-      <div className="mx-auto flex max-w-lg items-center justify-around">
+      <div className="mx-auto flex max-w-2xl items-center justify-around">
         {tabs.map((tab) => {
           const active = isActive(tab.path);
           return (
@@ -29,13 +30,13 @@ export function BottomNav() {
               key={tab.path}
               onClick={() => navigate(tab.path)}
               className={cn(
-                "tap-target flex flex-col items-center justify-center gap-0.5 px-3 py-2 text-[11px] font-medium transition-colors",
+                "tap-target flex flex-col items-center justify-center gap-0.5 px-2 py-2 text-[10px] font-medium transition-colors",
                 active
                   ? "text-primary"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <tab.icon className={cn("h-5 w-5", active && "stroke-[2.5px]")} />
+              <tab.icon className={cn("h-4 w-4", active && "stroke-[2.5px]")} />
               <span>{tab.label}</span>
             </button>
           );

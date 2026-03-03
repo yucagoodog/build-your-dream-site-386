@@ -12,6 +12,7 @@ import LibraryPage from "./pages/LibraryPage";
 import FlowsPage from "./pages/FlowsPage";
 import FlowBuilderPage from "./pages/FlowBuilderPage";
 import FlowExecutionPage from "./pages/FlowExecutionPage";
+import FlowRunnerPage from "./pages/FlowRunnerPage";
 import ExecutionsPage from "./pages/ExecutionsPage";
 import NotFound from "./pages/NotFound";
 
@@ -46,6 +47,7 @@ const AppRoutes = () => (
     <Route path="/flows" element={<ProtectedRoute><FlowsPage /></ProtectedRoute>} />
     <Route path="/flows/:flowId" element={<ProtectedRoute><FlowBuilderPage /></ProtectedRoute>} />
     <Route path="/flows/:flowId/run/:execId" element={<ProtectedRoute><FlowExecutionPage /></ProtectedRoute>} />
+    <Route path="/runner" element={<ProtectedRoute><FlowRunnerPage /></ProtectedRoute>} />
     <Route path="/executions" element={<ProtectedRoute><ExecutionsPage /></ProtectedRoute>} />
     <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
     <Route path="*" element={<NotFound />} />

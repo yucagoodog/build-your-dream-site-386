@@ -399,8 +399,15 @@ const FlowBuilderPage = () => {
 
       if (stepType === "image_generation") {
         const explicitSources = Array.isArray(config.source_image_urls)
-          ? config.source_image_urls.filter(Boolean) : [];
-        const imageUrls = explicitSources.length > 0 ? explicitSources : (inputUrl ? [inputUrl] : []);
+          ? config.source_image_urls.filter(Boolean)
+          : [];
+        const isFirstStep = stepExec.step_number === 1;
+        if (!isFirstStep && !inputUrl) {
+          throw new Error("No chained input for image generation step");
+        }
+        const imageUrls = isFirstStep
+          ? (explicitSources.length > 0 ? explicitSources : (inputUrl ? [inputUrl] : []))
+          : [inputUrl as string];
         const { data, error } = await supabase.functions.invoke("generate-image", {
           body: {
             action: "start", image_urls: imageUrls,
