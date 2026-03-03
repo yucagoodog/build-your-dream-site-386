@@ -540,7 +540,7 @@ export function UpscaleParamsSection({
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           className="bg-surface-1 min-h-[60px] text-sm"
-          maxLength={500}
+          maxLength={2000}
         />
       </div>
       <div className="grid grid-cols-3 gap-3">
