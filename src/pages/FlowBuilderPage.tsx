@@ -9,9 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   ArrowLeft, Plus, Trash2, ChevronDown, ChevronRight, Play, Save,
   Loader2, ImageIcon, Clapperboard, ZoomIn, ArrowDown, Layers,
+  Clock, Check, X, RotateCcw,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -49,6 +51,7 @@ const DEFAULT_CONFIGS: Record<StepType, any> = {
     prompt: "Enhance this image to higher quality and resolution with maximum detail",
     aspect_ratio: "original",
     output_format: "png",
+    resolution: "1k",
     source_image_url: "",
   },
   image_overlay: {
@@ -91,6 +94,7 @@ const FlowBuilderPage = () => {
   const [localSteps, setLocalSteps] = useState<any[]>([]);
   const [dirty, setDirty] = useState(false);
   const [startingRun, setStartingRun] = useState(false);
+  const [activeTab, setActiveTab] = useState("build");
 
   // Load flow
   const { isLoading: flowLoading } = useQuery({
@@ -128,6 +132,22 @@ const FlowBuilderPage = () => {
       return data;
     },
     enabled: !!flowId && !!user,
+  });
+
+  // Load past runs for Run tab
+  const { data: pastRuns = [], refetch: refetchRuns } = useQuery({
+    queryKey: ["flow_runs", flowId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("flow_executions")
+        .select("*")
+        .eq("flow_id", flowId!)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!flowId && !!user && activeTab === "run",
   });
 
   // Prompt blocks for pickers
@@ -260,10 +280,18 @@ const FlowBuilderPage = () => {
       });
       const { error: seErr } = await supabase.from("flow_step_executions").insert(stepExecs as any);
       if (seErr) throw seErr;
+      refetchRuns();
       navigate(`/flows/${flowId}/run/${exec.id}`);
     } catch (err: any) {
       toast({ title: "Failed to start", description: err.message, variant: "destructive" });
     } finally { setStartingRun(false); }
+  };
+
+  const deleteRun = async (runId: string) => {
+    await supabase.from("flow_step_executions").delete().eq("execution_id", runId);
+    await supabase.from("flow_executions").delete().eq("id", runId);
+    refetchRuns();
+    toast({ title: "Run deleted" });
   };
 
   const loading = flowLoading || stepsLoading;
@@ -293,51 +321,178 @@ const FlowBuilderPage = () => {
               className="bg-surface-1 text-xs" placeholder="Description (optional)" />
           </div>
 
-          {/* Steps */}
-          <div className="space-y-1">
-            {localSteps.length > 0 && (
-              <InsertStepRow onInsert={(type) => addStep(type, 0)} />
-            )}
-            {localSteps.map((step, idx) => (
-              <div key={step.id}>
-                <FullStepCard
-                  step={step} index={idx}
-                  imgBlocksByCategory={imgBlocksByCategory}
-                  vidBlocksByCategory={vidBlocksByCategory}
-                  onRemove={() => removeStep(idx)}
-                  onUpdateConfig={(k, v) => updateStepConfig(idx, k, v)}
-                  onUpdateType={(t) => updateStepType(idx, t)}
-                />
-                {idx < localSteps.length - 1 && (
-                  <InsertStepRow onInsert={(type) => addStep(type, idx + 1)} />
+          {/* Tabs */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="w-full grid grid-cols-2">
+              <TabsTrigger value="build" className="gap-1.5 text-xs">
+                <Layers className="h-3.5 w-3.5" /> Build
+              </TabsTrigger>
+              <TabsTrigger value="run" className="gap-1.5 text-xs">
+                <Play className="h-3.5 w-3.5" /> Run
+              </TabsTrigger>
+            </TabsList>
+
+            {/* ═══════ BUILD TAB ═══════ */}
+            <TabsContent value="build" className="space-y-4 mt-4">
+              {/* Steps */}
+              <div className="space-y-1">
+                {localSteps.length > 0 && (
+                  <InsertStepRow onInsert={(type) => addStep(type, 0)} />
                 )}
+                {localSteps.map((step, idx) => (
+                  <div key={step.id}>
+                    <FullStepCard
+                      step={step} index={idx}
+                      imgBlocksByCategory={imgBlocksByCategory}
+                      vidBlocksByCategory={vidBlocksByCategory}
+                      onRemove={() => removeStep(idx)}
+                      onUpdateConfig={(k, v) => updateStepConfig(idx, k, v)}
+                      onUpdateType={(t) => updateStepType(idx, t)}
+                    />
+                    {idx < localSteps.length - 1 && (
+                      <InsertStepRow onInsert={(type) => addStep(type, idx + 1)} />
+                    )}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
 
-          {/* Add step buttons */}
-          <AddStepRow onAdd={(type) => addStep(type)} />
+              {/* Add step buttons */}
+              <AddStepRow onAdd={(type) => addStep(type)} />
 
-          <Separator />
+              {localSteps.length > 0 && (
+                <p className="text-[10px] text-muted-foreground text-center">
+                  {localSteps.length} step{localSteps.length !== 1 ? "s" : ""} configured · Switch to <button onClick={() => setActiveTab("run")} className="underline text-primary">Run</button> to execute
+                </p>
+              )}
+            </TabsContent>
 
-          {/* Run buttons */}
-          <div className="grid grid-cols-2 gap-2">
-            <Button onClick={() => handleStartRun("full_auto")} disabled={localSteps.length === 0 || startingRun}
-              className="gap-1.5 h-11">
-              {startingRun ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-              Full Auto
-            </Button>
-            <Button variant="outline" onClick={() => handleStartRun("step_by_step")}
-              disabled={localSteps.length === 0 || startingRun} className="gap-1.5 h-11">
-              {startingRun ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-              Step-by-Step
-            </Button>
-          </div>
+            {/* ═══════ RUN TAB ═══════ */}
+            <TabsContent value="run" className="space-y-4 mt-4">
+              {/* Flow summary (read-only) */}
+              {localSteps.length > 0 ? (
+                <>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Flow Steps</Label>
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {localSteps.map((step, idx) => {
+                        const meta = STEP_TYPE_META[step.step_type as StepType];
+                        const Icon = meta.icon;
+                        return (
+                          <div key={step.id} className="flex items-center gap-1">
+                            <Badge variant="secondary" className="text-[10px] h-6 gap-1 px-2">
+                              <Icon className={cn("h-3 w-3", meta.color)} />
+                              {meta.label.replace("Generation", "Gen").replace("Image ", "")}
+                            </Badge>
+                            {idx < localSteps.length - 1 && <ArrowDown className="h-3 w-3 text-muted-foreground/40 rotate-[-90deg]" />}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Start run buttons */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button onClick={() => handleStartRun("full_auto")} disabled={localSteps.length === 0 || startingRun}
+                      className="gap-1.5 h-11">
+                      {startingRun ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                      Full Auto
+                    </Button>
+                    <Button variant="outline" onClick={() => handleStartRun("step_by_step")}
+                      disabled={localSteps.length === 0 || startingRun} className="gap-1.5 h-11">
+                      {startingRun ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                      Step-by-Step
+                    </Button>
+                  </div>
+
+                  {dirty && (
+                    <p className="text-[10px] text-amber-500 text-center">
+                      Unsaved changes — flow will auto-save before running
+                    </p>
+                  )}
+
+                  <Separator />
+
+                  {/* Past runs */}
+                  <div className="space-y-2">
+                    <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Run History</Label>
+                    {pastRuns.length === 0 ? (
+                      <p className="text-xs text-muted-foreground py-4 text-center">No runs yet — start one above</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {pastRuns.map((run: any) => (
+                          <RunHistoryCard
+                            key={run.id}
+                            run={run}
+                            flowId={flowId!}
+                            onOpen={() => navigate(`/flows/${flowId}/run/${run.id}`)}
+                            onDelete={() => deleteRun(run.id)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-8 space-y-2">
+                  <p className="text-sm text-muted-foreground">No steps configured</p>
+                  <Button variant="outline" size="sm" onClick={() => setActiveTab("build")}>
+                    Go to Build
+                  </Button>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         </div>
       )}
     </AppShell>
   );
 };
+
+/* ── Run History Card ── */
+function RunHistoryCard({ run, flowId, onOpen, onDelete }: {
+  run: any; flowId: string; onOpen: () => void; onDelete: () => void;
+}) {
+  const statusMap: Record<string, { icon: any; color: string; label: string }> = {
+    pending: { icon: Clock, color: "text-muted-foreground", label: "Pending" },
+    running: { icon: Loader2, color: "text-[hsl(var(--status-processing))]", label: "Running" },
+    completed: { icon: Check, color: "text-[hsl(var(--status-completed))]", label: "Completed" },
+    failed: { icon: X, color: "text-[hsl(var(--status-failed))]", label: "Failed" },
+  };
+  const s = statusMap[run.status] || statusMap.pending;
+  const Icon = s.icon;
+  const date = new Date(run.created_at);
+  const timeStr = date.toLocaleDateString(undefined, { month: "short", day: "numeric" }) +
+    " " + date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+
+  return (
+    <Card className="border-border/50 hover:border-border transition-colors cursor-pointer" onClick={onOpen}>
+      <CardContent className="p-3 flex items-center gap-3">
+        <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center shrink-0",
+          run.status === "completed" ? "bg-[hsl(var(--status-completed))]/10" :
+          run.status === "failed" ? "bg-[hsl(var(--status-failed))]/10" :
+          run.status === "running" ? "bg-[hsl(var(--status-processing))]/10" : "bg-muted"
+        )}>
+          <Icon className={cn("h-4 w-4", s.color, run.status === "running" && "animate-spin")} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium">{run.mode === "full_auto" ? "Full Auto" : "Step-by-Step"}</p>
+          <p className="text-[10px] text-muted-foreground">{timeStr}</p>
+        </div>
+        <Badge variant="secondary" className={cn("text-[9px] h-5", s.color)}>
+          {s.label}
+        </Badge>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 shrink-0"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      </CardContent>
+    </Card>
+  );
+}
 
 /* ── Full Step Card with complete generation UI ── */
 function FullStepCard({ step, index, imgBlocksByCategory, vidBlocksByCategory, onRemove, onUpdateConfig, onUpdateType }: {
@@ -353,7 +508,6 @@ function FullStepCard({ step, index, imgBlocksByCategory, vidBlocksByCategory, o
   const Icon = meta.icon;
   const config = step.config || {};
 
-  // Local state wrappers that sync to config
   const setConfigPrompt = (v: string) => onUpdateConfig("prompt", v);
   const setConfigNeg = (v: string) => onUpdateConfig("negative_prompt", v);
 
