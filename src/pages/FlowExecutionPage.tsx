@@ -178,14 +178,15 @@ const FlowExecutionPage = () => {
 
         resultUrl = await pollForResult("generate-video", { action: "poll", generation_id: genId }, "video_url");
 
-      } else if (stepType === "image_upscale" || config.target_resolution) {
+      } else if (stepType === "image_upscale") {
         if (!inputUrl) throw new Error("No input image for upscale");
         const { data, error } = await supabase.functions.invoke("upscale-image", {
           body: {
             action: "start",
             image_url: inputUrl,
-            target_resolution: config.target_resolution || "4k",
-            creativity: config.creativity ?? 2,
+            prompt: config.prompt || "Enhance this image to higher quality and resolution with maximum detail",
+            aspect_ratio: config.aspect_ratio === "original" ? undefined : config.aspect_ratio,
+            output_format: config.output_format || "png",
           },
         });
         const errMsg = data?.error || error?.message;
@@ -417,7 +418,7 @@ const FlowExecutionPage = () => {
       <div className="p-4 max-w-xl mx-auto space-y-3">
         {/* Step cards */}
         {stepExecs.map((se: any, idx: number) => {
-          const Icon = STEP_ICONS[se.config_snapshot?.resolution ? "video_generation" : se.config_snapshot?.target_resolution ? "image_upscale" : "image_generation"] || ImageIcon;
+          const Icon = STEP_ICONS[se.config_snapshot?.resolution ? "video_generation" : se.config_snapshot?.aspect_ratio ? "image_upscale" : "image_generation"] || ImageIcon;
           const status = STATUS_STYLES[se.status] || STATUS_STYLES.pending;
 
           return (

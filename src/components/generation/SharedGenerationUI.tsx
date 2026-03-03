@@ -516,20 +516,61 @@ export function VideoParamsSection({
 
 /* ─── Upscale Parameters ─── */
 export function UpscaleParamsSection({
-  targetResolution, setTargetResolution,
+  prompt, setPrompt,
+  aspectRatio, setAspectRatio,
+  outputFormat, setOutputFormat,
 }: {
-  targetResolution: string; setTargetResolution: (v: string) => void;
+  prompt: string; setPrompt: (v: string) => void;
+  aspectRatio: string; setAspectRatio: (v: string) => void;
+  outputFormat: string; setOutputFormat: (v: string) => void;
 }) {
   return (
-    <section className="space-y-2">
-      <Label className="text-xs text-muted-foreground">Target Resolution</Label>
-      <Select value={targetResolution} onValueChange={setTargetResolution}>
-        <SelectTrigger className="bg-surface-1 h-9 text-xs"><SelectValue /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="2k">2K</SelectItem>
-          <SelectItem value="4k">4K</SelectItem>
-        </SelectContent>
-      </Select>
+    <section className="space-y-3">
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs text-muted-foreground">Enhancement Prompt</Label>
+          <span className="text-[10px] text-muted-foreground">{prompt.length}/500</span>
+        </div>
+        <Textarea
+          placeholder="Describe how to enhance — e.g. 'Upscale to maximum detail with sharp textures'"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          className="bg-surface-1 min-h-[60px] text-sm"
+          maxLength={500}
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label className="text-[10px] text-muted-foreground">Aspect Ratio</Label>
+          <Select value={aspectRatio} onValueChange={setAspectRatio}>
+            <SelectTrigger className="bg-surface-1 h-9 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="original" className="text-xs">Original</SelectItem>
+              <SelectItem value="1:1" className="text-xs">1:1</SelectItem>
+              <SelectItem value="3:2" className="text-xs">3:2</SelectItem>
+              <SelectItem value="2:3" className="text-xs">2:3</SelectItem>
+              <SelectItem value="3:4" className="text-xs">3:4</SelectItem>
+              <SelectItem value="4:3" className="text-xs">4:3</SelectItem>
+              <SelectItem value="4:5" className="text-xs">4:5</SelectItem>
+              <SelectItem value="5:4" className="text-xs">5:4</SelectItem>
+              <SelectItem value="9:16" className="text-xs">9:16</SelectItem>
+              <SelectItem value="16:9" className="text-xs">16:9</SelectItem>
+              <SelectItem value="21:9" className="text-xs">21:9</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[10px] text-muted-foreground">Output Format</Label>
+          <Select value={outputFormat} onValueChange={setOutputFormat}>
+            <SelectTrigger className="bg-surface-1 h-9 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="png" className="text-xs">PNG</SelectItem>
+              <SelectItem value="jpeg" className="text-xs">JPEG</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <p className="text-[10px] text-muted-foreground">Powered by Nano Banana 2 Edit · $0.072/image</p>
     </section>
   );
 }

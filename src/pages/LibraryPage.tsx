@@ -236,8 +236,8 @@ const LibraryPage = () => {
         body: {
           action: "start",
           image_url: imageUrl,
-          target_resolution: "4k",
-          creativity: 2,
+          prompt: "Enhance this image to higher quality and resolution with maximum detail",
+          output_format: "png",
           source_edit_id: item.id,
           project_id: item.project_id,
         },
@@ -584,7 +584,7 @@ function LibraryCard({
               <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={onCopyParams}>
                 <Copy className="h-3 w-3" /> Copy Params
               </Button>
-              {item.type === "image" && item.status === "completed" && item.output_image_url && item.model !== "atlascloud/image-upscaler" && (
+              {item.type === "image" && item.status === "completed" && item.output_image_url && item.model !== "google/nano-banana-2/edit" && (
                 <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={onUpscale} disabled={isUpscaling}>
                   {isUpscaling ? <Loader2 className="h-3 w-3 animate-spin" /> : <ZoomIn className="h-3 w-3" />}
                   {isUpscaling ? "Upscaling…" : "Upscale 4K"}
