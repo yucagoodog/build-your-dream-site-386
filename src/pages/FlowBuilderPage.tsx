@@ -295,6 +295,9 @@ const FlowBuilderPage = () => {
 
           {/* Steps */}
           <div className="space-y-1">
+            {localSteps.length > 0 && (
+              <InsertStepRow onInsert={(type) => addStep(type, 0)} />
+            )}
             {localSteps.map((step, idx) => (
               <div key={step.id}>
                 <FullStepCard
