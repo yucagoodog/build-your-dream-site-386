@@ -134,9 +134,13 @@ const FlowExecutionPage = () => {
         const explicitSourceImages = Array.isArray(config.source_image_urls)
           ? config.source_image_urls.filter((url: string | null) => Boolean(url))
           : [];
-        const imageUrls = explicitSourceImages.length > 0
-          ? explicitSourceImages
-          : (inputUrl ? [inputUrl] : []);
+        const isFirstStep = stepExec.step_number === 1;
+        if (!isFirstStep && !inputUrl) {
+          throw new Error("No chained input for image generation step");
+        }
+        const imageUrls = isFirstStep
+          ? (explicitSourceImages.length > 0 ? explicitSourceImages : (inputUrl ? [inputUrl] : []))
+          : [inputUrl as string];
 
         const { data, error } = await supabase.functions.invoke("generate-image", {
           body: {
