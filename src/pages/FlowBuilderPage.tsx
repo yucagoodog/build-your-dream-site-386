@@ -492,6 +492,8 @@ function FullStepCard({ step, index, imgBlocksByCategory, vidBlocksByCategory, o
                   setAspectRatio={(v) => onUpdateConfig("aspect_ratio", v)}
                   outputFormat={config.output_format || "png"}
                   setOutputFormat={(v) => onUpdateConfig("output_format", v)}
+                  resolution={config.resolution || "1k"}
+                  setResolution={(v) => onUpdateConfig("resolution", v)}
                 />
               </div>
             )}

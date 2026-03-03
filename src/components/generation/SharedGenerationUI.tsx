@@ -515,14 +515,18 @@ export function VideoParamsSection({
 }
 
 /* ─── Upscale Parameters ─── */
+const UPSCALE_RESOLUTION_PRICES: Record<string, string> = { "1k": "$0.08", "2k": "$0.12", "4k": "$0.16" };
+
 export function UpscaleParamsSection({
   prompt, setPrompt,
   aspectRatio, setAspectRatio,
   outputFormat, setOutputFormat,
+  resolution, setResolution,
 }: {
   prompt: string; setPrompt: (v: string) => void;
   aspectRatio: string; setAspectRatio: (v: string) => void;
   outputFormat: string; setOutputFormat: (v: string) => void;
+  resolution: string; setResolution: (v: string) => void;
 }) {
   return (
     <section className="space-y-3">
@@ -539,7 +543,18 @@ export function UpscaleParamsSection({
           maxLength={500}
         />
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
+        <div className="space-y-1">
+          <Label className="text-[10px] text-muted-foreground">Resolution</Label>
+          <Select value={resolution} onValueChange={setResolution}>
+            <SelectTrigger className="bg-surface-1 h-9 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1k" className="text-xs">1K</SelectItem>
+              <SelectItem value="2k" className="text-xs">2K</SelectItem>
+              <SelectItem value="4k" className="text-xs">4K</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <div className="space-y-1">
           <Label className="text-[10px] text-muted-foreground">Aspect Ratio</Label>
           <Select value={aspectRatio} onValueChange={setAspectRatio}>
@@ -560,7 +575,7 @@ export function UpscaleParamsSection({
           </Select>
         </div>
         <div className="space-y-1">
-          <Label className="text-[10px] text-muted-foreground">Output Format</Label>
+          <Label className="text-[10px] text-muted-foreground">Format</Label>
           <Select value={outputFormat} onValueChange={setOutputFormat}>
             <SelectTrigger className="bg-surface-1 h-9 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -570,7 +585,7 @@ export function UpscaleParamsSection({
           </Select>
         </div>
       </div>
-      <p className="text-[10px] text-muted-foreground">Powered by Nano Banana 2 Edit · $0.072/image</p>
+      <p className="text-[10px] text-muted-foreground">Nano Banana 2 Edit · {UPSCALE_RESOLUTION_PRICES[resolution] || "$0.08"}/image</p>
     </section>
   );
 }
