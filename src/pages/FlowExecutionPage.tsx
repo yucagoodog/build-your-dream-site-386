@@ -187,6 +187,7 @@ const FlowExecutionPage = () => {
             prompt: config.prompt || "Enhance this image to higher quality and resolution with maximum detail",
             aspect_ratio: config.aspect_ratio === "original" ? undefined : config.aspect_ratio,
             output_format: config.output_format || "png",
+            resolution: config.resolution || "1k",
           },
         });
         const errMsg = data?.error || error?.message;

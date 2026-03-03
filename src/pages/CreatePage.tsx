@@ -76,6 +76,7 @@ const CreatePage = () => {
   const [upscalePrompt, setUpscalePrompt] = useState("Enhance this image to higher quality and resolution with maximum detail");
   const [upscaleAspectRatio, setUpscaleAspectRatio] = useState("original");
   const [upscaleOutputFormat, setUpscaleOutputFormat] = useState("png");
+  const [upscaleResolution, setUpscaleResolution] = useState("1k");
 
   // Overlay state
   const [overlayBaseUrl, setOverlayBaseUrl] = useState("");
@@ -258,6 +259,7 @@ const CreatePage = () => {
           prompt: upscalePrompt,
           aspect_ratio: upscaleAspectRatio === "original" ? undefined : upscaleAspectRatio,
           output_format: upscaleOutputFormat,
+          resolution: upscaleResolution,
         },
       });
       if (error) throw new Error(error.message);
@@ -416,6 +418,7 @@ const CreatePage = () => {
                 prompt={upscalePrompt} setPrompt={setUpscalePrompt}
                 aspectRatio={upscaleAspectRatio} setAspectRatio={setUpscaleAspectRatio}
                 outputFormat={upscaleOutputFormat} setOutputFormat={setUpscaleOutputFormat}
+                resolution={upscaleResolution} setResolution={setUpscaleResolution}
               />
             </>
           )}

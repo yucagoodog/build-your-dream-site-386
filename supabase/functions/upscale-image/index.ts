@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
     const { action } = body;
 
     if (action === "start") {
-      const { image_url, prompt, aspect_ratio, output_format, source_edit_id, project_id } = body;
+      const { image_url, prompt, aspect_ratio, output_format, resolution, source_edit_id, project_id } = body;
 
       if (!image_url) {
         return new Response(JSON.stringify({ error: "No image URL provided" }), {
@@ -84,11 +84,13 @@ Deno.serve(async (req) => {
         );
       }
 
+      const res = resolution || "1k";
       const requestBody: Record<string, any> = {
         model: "google/nano-banana-2/edit",
         images: [image_url],
         prompt: prompt || "Enhance this image to higher quality and resolution with maximum detail",
         output_format: output_format || "png",
+        resolution: res,
         enable_sync_mode: false,
         enable_base64_output: false,
       };
@@ -142,7 +144,7 @@ Deno.serve(async (req) => {
           enable_prompt_expansion: false,
           atlas_task_id: predictionId,
           status: "processing",
-          cost: 0.072,
+          cost: res === "4k" ? 0.16 : res === "2k" ? 0.12 : 0.08,
           source_image_urls: [image_url],
         })
         .select()
