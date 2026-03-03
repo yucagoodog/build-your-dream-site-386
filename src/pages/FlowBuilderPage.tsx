@@ -160,16 +160,20 @@ const FlowBuilderPage = () => {
     return acc;
   }, {});
 
-  const addStep = (type: StepType) => {
+  const addStep = (type: StepType, atIndex?: number) => {
     const newStep = {
       id: `new-${Date.now()}`,
       flow_id: flowId,
       user_id: user!.id,
-      step_number: localSteps.length + 1,
+      step_number: 0,
       step_type: type,
       config: getStepDefaults(type, userSettings),
     };
-    setLocalSteps((prev) => [...prev, newStep]);
+    setLocalSteps((prev) => {
+      const idx = atIndex !== undefined ? atIndex : prev.length;
+      const next = [...prev.slice(0, idx), newStep, ...prev.slice(idx)];
+      return next.map((s, i) => ({ ...s, step_number: i + 1 }));
+    });
     setDirty(true);
   };
 
@@ -302,27 +306,14 @@ const FlowBuilderPage = () => {
                   onUpdateType={(t) => updateStepType(idx, t)}
                 />
                 {idx < localSteps.length - 1 && (
-                  <div className="flex justify-center py-1">
-                    <ArrowDown className="h-4 w-4 text-muted-foreground/40" />
-                  </div>
+                  <InsertStepRow onInsert={(type) => addStep(type, idx + 1)} />
                 )}
               </div>
             ))}
           </div>
 
           {/* Add step buttons */}
-          <div className="flex gap-2">
-            {(Object.keys(STEP_TYPE_META) as StepType[]).map((type) => {
-              const meta = STEP_TYPE_META[type];
-              return (
-                <Button key={type} variant="outline" size="sm" className="flex-1 gap-1.5 text-[11px] h-10"
-                  onClick={() => addStep(type)}>
-                  <meta.icon className={cn("h-3.5 w-3.5", meta.color)} />
-                  {meta.label.replace("Generation", "Gen").replace("Image ", "Img ")}
-                </Button>
-              );
-            })}
-          </div>
+          <AddStepRow onAdd={(type) => addStep(type)} />
 
           <Separator />
 
@@ -534,6 +525,53 @@ function FullStepCard({ step, index, imgBlocksByCategory, vidBlocksByCategory, o
         </CollapsibleContent>
       </Collapsible>
     </Card>
+  );
+}
+
+/* ── Add Step Row (bottom) ── */
+function AddStepRow({ onAdd }: { onAdd: (type: StepType) => void }) {
+  return (
+    <div className="flex gap-2">
+      {(Object.keys(STEP_TYPE_META) as StepType[]).map((type) => {
+        const meta = STEP_TYPE_META[type];
+        return (
+          <Button key={type} variant="outline" size="sm" className="flex-1 gap-1.5 text-[11px] h-10"
+            onClick={() => onAdd(type)}>
+            <meta.icon className={cn("h-3.5 w-3.5", meta.color)} />
+            {meta.label.replace("Generation", "Gen").replace("Image ", "Img ")}
+          </Button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── Insert Step Between (inline) ── */
+function InsertStepRow({ onInsert }: { onInsert: (type: StepType) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="flex justify-center py-1">
+      {!open ? (
+        <button onClick={() => setOpen(true)} className="flex items-center gap-1 text-muted-foreground/50 hover:text-muted-foreground transition-colors group">
+          <ArrowDown className="h-3.5 w-3.5" />
+          <Plus className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+        </button>
+      ) : (
+        <div className="flex gap-1.5 items-center">
+          {(Object.keys(STEP_TYPE_META) as StepType[]).map((type) => {
+            const meta = STEP_TYPE_META[type];
+            return (
+              <Button key={type} variant="ghost" size="sm" className="h-7 px-2 text-[10px] gap-1"
+                onClick={() => { onInsert(type); setOpen(false); }}>
+                <meta.icon className={cn("h-3 w-3", meta.color)} />
+                {meta.label.replace("Generation", "Gen").replace("Image ", "Img ")}
+              </Button>
+            );
+          })}
+          <button onClick={() => setOpen(false)} className="text-muted-foreground/50 hover:text-muted-foreground text-xs px-1">✕</button>
+        </div>
+      )}
+    </div>
   );
 }
 
