@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
     const { action } = body;
 
     if (action === "start") {
-      const { image_url, target_resolution, creativity, source_edit_id, project_id } = body;
+      const { image_url, prompt, aspect_ratio, output_format, source_edit_id, project_id } = body;
 
       if (!image_url) {
         return new Response(JSON.stringify({ error: "No image URL provided" }), {
@@ -84,6 +84,18 @@ Deno.serve(async (req) => {
         );
       }
 
+      const requestBody: Record<string, any> = {
+        model: "google/nano-banana-2/edit",
+        images: [image_url],
+        prompt: prompt || "Enhance this image to higher quality and resolution with maximum detail",
+        output_format: output_format || "png",
+        enable_sync_mode: false,
+        enable_base64_output: false,
+      };
+      if (aspect_ratio) {
+        requestBody.aspect_ratio = aspect_ratio;
+      }
+
       const generateRes = await fetch(
         "https://api.atlascloud.ai/api/v1/model/generateImage",
         {
@@ -92,23 +104,15 @@ Deno.serve(async (req) => {
             "Content-Type": "application/json",
             Authorization: `Bearer ${settings.atlas_api_key}`,
           },
-          body: JSON.stringify({
-            model: "atlascloud/image-upscaler",
-            image: image_url,
-            creativity: creativity ?? 2,
-            output_format: "jpeg",
-            enable_sync_mode: false,
-            target_resolution: target_resolution || "4k",
-            enable_base64_output: false,
-          }),
+          body: JSON.stringify(requestBody),
         }
       );
 
       const generateResult = await generateRes.json();
-      console.log("Atlas upscale response:", JSON.stringify(generateResult));
+      console.log("Upscale (nano-banana-2/edit) response:", JSON.stringify(generateResult));
       if (!generateRes.ok) {
         const errMsg = generateResult?.message || generateResult?.error || generateResult?.data?.message || JSON.stringify(generateResult);
-        console.error("Atlas upscale error:", errMsg);
+        console.error("Upscale error:", errMsg);
         return new Response(
           JSON.stringify({ error: errMsg }),
           { status: generateRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -123,7 +127,6 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Store as an image_edit with model = "atlascloud/image-upscaler"
       const { data: edit, error: editErr } = await supabase
         .from("image_edits")
         .insert({
@@ -131,15 +134,15 @@ Deno.serve(async (req) => {
           parent_edit_id: source_edit_id || null,
           project_id: project_id || null,
           user_id: user.id,
-          model: "atlascloud/image-upscaler",
-          prompt: `Upscale to ${target_resolution || "4k"}`,
+          model: "google/nano-banana-2/edit",
+          prompt: prompt || "Enhance to higher quality",
           negative_prompt: "",
-          output_size: target_resolution || "4k",
+          output_size: aspect_ratio || "original",
           seed: null,
           enable_prompt_expansion: false,
           atlas_task_id: predictionId,
           status: "processing",
-          cost: 0.01,
+          cost: 0.072,
           source_image_urls: [image_url],
         })
         .select()
@@ -190,7 +193,7 @@ Deno.serve(async (req) => {
         const atlasUrl = pollResult?.data?.outputs?.[0] || null;
         let permanentUrl = atlasUrl;
         if (atlasUrl) {
-          const stored = await downloadAndStore(supabaseAdmin, user.id, atlasUrl, "jpeg", "upscale-results");
+          const stored = await downloadAndStore(supabaseAdmin, user.id, atlasUrl, "png", "upscale-results");
           if (stored) permanentUrl = stored;
         }
         await supabase

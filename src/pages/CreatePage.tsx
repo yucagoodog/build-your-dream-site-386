@@ -73,7 +73,9 @@ const CreatePage = () => {
 
   // Upscale state
   const [upscaleImageUrl, setUpscaleImageUrl] = useState("");
-  const [targetResolution, setTargetResolution] = useState("4k");
+  const [upscalePrompt, setUpscalePrompt] = useState("Enhance this image to higher quality and resolution with maximum detail");
+  const [upscaleAspectRatio, setUpscaleAspectRatio] = useState("original");
+  const [upscaleOutputFormat, setUpscaleOutputFormat] = useState("png");
 
   // Overlay state
   const [overlayBaseUrl, setOverlayBaseUrl] = useState("");
@@ -250,7 +252,13 @@ const CreatePage = () => {
     setGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke("upscale-image", {
-        body: { action: "start", image_url: upscaleImageUrl, target_resolution: targetResolution, creativity: 2 },
+        body: {
+          action: "start",
+          image_url: upscaleImageUrl,
+          prompt: upscalePrompt,
+          aspect_ratio: upscaleAspectRatio === "original" ? undefined : upscaleAspectRatio,
+          output_format: upscaleOutputFormat,
+        },
       });
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
@@ -404,7 +412,11 @@ const CreatePage = () => {
           {mode === "upscale" && (
             <>
               <SeedImageUpload imageUrl={upscaleImageUrl} setImageUrl={setUpscaleImageUrl} label="Image to Upscale" />
-              <UpscaleParamsSection targetResolution={targetResolution} setTargetResolution={setTargetResolution} />
+              <UpscaleParamsSection
+                prompt={upscalePrompt} setPrompt={setUpscalePrompt}
+                aspectRatio={upscaleAspectRatio} setAspectRatio={setUpscaleAspectRatio}
+                outputFormat={upscaleOutputFormat} setOutputFormat={setUpscaleOutputFormat}
+              />
             </>
           )}
 

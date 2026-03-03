@@ -46,7 +46,10 @@ const DEFAULT_CONFIGS: Record<StepType, any> = {
     seed_image_url: "",
   },
   image_upscale: {
-    target_resolution: "4k", creativity: 2, source_image_url: "",
+    prompt: "Enhance this image to higher quality and resolution with maximum detail",
+    aspect_ratio: "original",
+    output_format: "png",
+    source_image_url: "",
   },
   image_overlay: {
     overlay_image_url: "", source_image_url: "",
@@ -489,8 +492,12 @@ function FullStepCard({ step, index, imgBlocksByCategory, vidBlocksByCategory, o
                   />
                 )}
                 <UpscaleParamsSection
-                  targetResolution={config.target_resolution || "4k"}
-                  setTargetResolution={(v) => onUpdateConfig("target_resolution", v)}
+                  prompt={config.prompt || "Enhance this image to higher quality and resolution with maximum detail"}
+                  setPrompt={(v) => onUpdateConfig("prompt", v)}
+                  aspectRatio={config.aspect_ratio || "original"}
+                  setAspectRatio={(v) => onUpdateConfig("aspect_ratio", v)}
+                  outputFormat={config.output_format || "png"}
+                  setOutputFormat={(v) => onUpdateConfig("output_format", v)}
                 />
               </div>
             )}
