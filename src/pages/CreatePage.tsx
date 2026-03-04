@@ -25,7 +25,7 @@ import { extractInvokeError } from "@/lib/invoke-error";
 import {
   ImageSourceSlots, SeedImageUpload,
   ImagePromptSection, ImageParamsSection,
-  VideoPromptSection, VideoParamsSection,
+  VideoModelSelector, VideoPromptSection, VideoParamsSection,
   UpscaleParamsSection, OverlayParamsSection,
 } from "@/components/generation/SharedGenerationUI";
 
@@ -397,6 +397,8 @@ const CreatePage = () => {
           {/* VIDEO MODE */}
           {mode === "video" && (
             <>
+              <VideoModelSelector videoModel={videoModel} setVideoModel={setVideoModel} />
+              <Separator />
               <SeedImageUpload imageUrl={seedImageUrl} setImageUrl={setSeedImageUrl} />
               <Separator />
               <VideoPromptSection
@@ -414,7 +416,7 @@ const CreatePage = () => {
                 seed={vidSeed} setSeed={setVidSeed}
                 promptExpansion={vidPromptExpansion} setPromptExpansion={setVidPromptExpansion}
                 audioEnabled={audioEnabled} setAudioEnabled={setAudioEnabled}
-                videoModel={videoModel} setVideoModel={setVideoModel}
+                videoModel={videoModel}
               />
             </>
           )}
