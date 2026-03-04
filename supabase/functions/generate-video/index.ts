@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
 
       const isStandard = model === "alibaba/wan-2.6/image-to-video";
       const costEstimate = isStandard
-        ? (resolution === "1080p" ? 0.15 : 0.10) * duration
+        ? (resolution === "1080p" ? 0.15 : resolution === "480p" ? 0.07 : 0.10) * duration
         : (generate_audio
           ? (resolution === "1080p" ? 0.075 : 0.05)
           : (resolution === "1080p" ? 0.0375 : 0.025)) * duration;
