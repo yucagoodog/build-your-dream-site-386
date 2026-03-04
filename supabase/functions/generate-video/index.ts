@@ -155,7 +155,7 @@ Deno.serve(async (req) => {
           prompt_used: prompt,
           negative_prompt_used: negative_prompt,
           parameters: {
-            resolution, duration, seed, shot_type,
+            model, resolution, duration, seed, shot_type,
             prompt_expansion: enable_prompt_expansion,
             audio: generate_audio,
             seed_image_url,
