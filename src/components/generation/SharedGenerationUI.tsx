@@ -470,6 +470,7 @@ export function VideoParamsSection({
   duration, setDuration, randomSeed, setRandomSeed,
   seed, setSeed, promptExpansion, setPromptExpansion,
   audioEnabled, setAudioEnabled,
+  videoModel, setVideoModel,
 }: {
   resolution: string; setResolution: (v: string) => void;
   shotType: string; setShotType: (v: string) => void;
@@ -478,9 +479,27 @@ export function VideoParamsSection({
   seed: string; setSeed: (v: string) => void;
   promptExpansion: boolean; setPromptExpansion: (v: boolean) => void;
   audioEnabled: boolean; setAudioEnabled: (v: boolean) => void;
+  videoModel: string; setVideoModel: (v: string) => void;
 }) {
   return (
     <section className="space-y-3">
+      {/* Model selector */}
+      <div className="space-y-1">
+        <Label className="text-[10px] text-muted-foreground">Video Model</Label>
+        <div className="grid grid-cols-2 gap-1.5">
+          {[
+            { key: "alibaba/wan-2.6/image-to-video-flash", label: "Flash", desc: "Fast · ~$0.02/s" },
+            { key: "alibaba/wan-2.6/image-to-video", label: "Standard", desc: "HQ · ~$0.10/s" },
+          ].map((m) => (
+            <button key={m.key} onClick={() => setVideoModel(m.key)}
+              className={cn("rounded-lg py-2.5 px-2 text-left transition-colors",
+                videoModel === m.key ? "bg-primary text-primary-foreground" : "bg-surface-1 text-muted-foreground hover:text-foreground")}>
+              <span className="text-[11px] font-medium block">{m.label}</span>
+              <span className="text-[9px] opacity-70">{m.desc}</span>
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label className="text-[10px] text-muted-foreground">Resolution</Label>

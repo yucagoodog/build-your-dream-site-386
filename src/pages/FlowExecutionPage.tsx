@@ -174,6 +174,7 @@ const FlowExecutionPage = () => {
             seed: config.seed ?? -1,
             enable_prompt_expansion: config.enable_prompt_expansion ?? true,
             generate_audio: config.generate_audio ?? false,
+            model: config.model || "alibaba/wan-2.6/image-to-video-flash",
           },
         });
         if (error || data?.error) throw new Error(data?.error || error?.message);

@@ -53,7 +53,7 @@ const DEFAULT_CONFIGS: Record<StepType, any> = {
   video_generation: {
     prompt: "", negative_prompt: "", resolution: "720p", duration: 5,
     shot_type: "single", seed: -1, enable_prompt_expansion: true, generate_audio: false,
-    seed_image_url: "",
+    seed_image_url: "", model: "alibaba/wan-2.6/image-to-video-flash",
   },
   image_upscale: {
     prompt: "Enhance this image to higher quality and resolution with maximum detail",
@@ -1049,7 +1049,8 @@ function FullStepCard({ step, index, imgBlocksByCategory, vidBlocksByCategory, o
                   randomSeed={config.seed === -1 || config.seed === undefined} setRandomSeed={(v) => onUpdateConfig("seed", v ? -1 : 0)}
                   seed={config.seed === -1 ? "" : String(config.seed || "")} setSeed={(v) => onUpdateConfig("seed", parseInt(v) || 0)}
                   promptExpansion={config.enable_prompt_expansion ?? true} setPromptExpansion={(v) => onUpdateConfig("enable_prompt_expansion", v)}
-                  audioEnabled={config.generate_audio ?? false} setAudioEnabled={(v) => onUpdateConfig("generate_audio", v)} />
+                  audioEnabled={config.generate_audio ?? false} setAudioEnabled={(v) => onUpdateConfig("generate_audio", v)}
+                  videoModel={config.model || "alibaba/wan-2.6/image-to-video-flash"} setVideoModel={(v) => onUpdateConfig("model", v)} />
               </div>
             )}
 

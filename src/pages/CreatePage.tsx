@@ -30,7 +30,12 @@ import {
 
 type Mode = "image" | "video" | "upscale" | "overlay";
 
-function estimateVideoCost(resolution: string, duration: number, audio: boolean): number {
+function estimateVideoCost(resolution: string, duration: number, audio: boolean, model: string): number {
+  if (model === "alibaba/wan-2.6/image-to-video") {
+    // Standard: 720p=$0.10/s, 1080p=$0.15/s
+    return (resolution === "1080p" ? 0.15 : 0.10) * duration;
+  }
+  // Flash pricing
   const perSecond = audio
     ? (resolution === "1080p" ? 0.12 : 0.06)
     : (resolution === "1080p" ? 0.0262 : 0.0175);
@@ -70,6 +75,7 @@ const CreatePage = () => {
   const [shotType, setShotType] = useState("single");
   const [vidPromptExpansion, setVidPromptExpansion] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(false);
+  const [videoModel, setVideoModel] = useState("alibaba/wan-2.6/image-to-video-flash");
 
   // Upscale state
   const [upscaleImageUrl, setUpscaleImageUrl] = useState("");
@@ -235,6 +241,7 @@ const CreatePage = () => {
           action: "start", prompt, negative_prompt: negativePrompt, seed_image_url: seedImageUrl,
           resolution, duration, seed: vidRandomSeed ? -1 : parseInt(vidSeed) || -1,
           shot_type: shotType, enable_prompt_expansion: vidPromptExpansion, generate_audio: audioEnabled,
+          model: videoModel,
         },
       });
       if (error) throw new Error(error.message);
@@ -342,7 +349,7 @@ const CreatePage = () => {
   };
 
   const imgCost = 0.021;
-  const vidCost = estimateVideoCost(resolution, duration, audioEnabled);
+  const vidCost = estimateVideoCost(resolution, duration, audioEnabled, videoModel);
   const canGenerate = mode === "image" ? filledSlots.length > 0 && prompt.trim().length > 0
     : mode === "video" ? !!seedImageUrl && prompt.trim().length > 0
     : mode === "overlay" ? !!overlayBaseUrl && !!overlayPngUrl
@@ -406,6 +413,7 @@ const CreatePage = () => {
                 seed={vidSeed} setSeed={setVidSeed}
                 promptExpansion={vidPromptExpansion} setPromptExpansion={setVidPromptExpansion}
                 audioEnabled={audioEnabled} setAudioEnabled={setAudioEnabled}
+                videoModel={videoModel} setVideoModel={setVideoModel}
               />
             </>
           )}

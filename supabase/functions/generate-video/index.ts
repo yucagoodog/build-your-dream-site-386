@@ -95,6 +95,8 @@ Deno.serve(async (req) => {
         generate_audio = body.generate_audio ?? false;
       }
 
+      const model = body.model || "alibaba/wan-2.6/image-to-video-flash";
+
       if (!seed_image_url) {
         return new Response(JSON.stringify({ error: "Seed image is required" }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -110,15 +112,18 @@ Deno.serve(async (req) => {
         );
       }
 
-      const costEstimate = (generate_audio
-        ? (resolution === "1080p" ? 0.12 : 0.06)
-        : (resolution === "1080p" ? 0.0262 : 0.0175)) * duration;
+      const isStandard = model === "alibaba/wan-2.6/image-to-video";
+      const costEstimate = isStandard
+        ? (resolution === "1080p" ? 0.15 : 0.10) * duration
+        : (generate_audio
+          ? (resolution === "1080p" ? 0.12 : 0.06)
+          : (resolution === "1080p" ? 0.0262 : 0.0175)) * duration;
 
       const generateRes = await fetch("https://api.atlascloud.ai/api/v1/model/generateVideo", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${settings.atlas_api_key}` },
         body: JSON.stringify({
-          model: "alibaba/wan-2.6/image-to-video-flash",
+          model,
           prompt, negative_prompt, image: seed_image_url,
           resolution, duration, seed, shot_type,
           enable_prompt_expansion, generate_audio,
