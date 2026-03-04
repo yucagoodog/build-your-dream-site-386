@@ -76,6 +76,7 @@ const CreatePage = () => {
   const [shotType, setShotType] = useState("single");
   const [vidPromptExpansion, setVidPromptExpansion] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(false);
+  const [audioFileUrl, setAudioFileUrl] = useState("");
   const [videoModel, setVideoModel] = useState("alibaba/wan-2.6/image-to-video-flash");
 
   // Upscale state
@@ -243,6 +244,7 @@ const CreatePage = () => {
           resolution, duration, seed: vidRandomSeed ? -1 : parseInt(vidSeed) || -1,
           shot_type: shotType, enable_prompt_expansion: vidPromptExpansion, generate_audio: audioEnabled,
           model: videoModel,
+          ...(audioFileUrl ? { audio: audioFileUrl } : {}),
         },
       });
       const errMsg = await extractInvokeError(error, data);
@@ -416,6 +418,7 @@ const CreatePage = () => {
                 seed={vidSeed} setSeed={setVidSeed}
                 promptExpansion={vidPromptExpansion} setPromptExpansion={setVidPromptExpansion}
                 audioEnabled={audioEnabled} setAudioEnabled={setAudioEnabled}
+                audioFileUrl={audioFileUrl} setAudioFileUrl={setAudioFileUrl}
                 videoModel={videoModel}
               />
             </>

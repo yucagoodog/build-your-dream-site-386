@@ -177,6 +177,7 @@ const FlowExecutionPage = () => {
             enable_prompt_expansion: config.enable_prompt_expansion ?? true,
             generate_audio: config.generate_audio ?? false,
             model: config.model || "alibaba/wan-2.6/image-to-video-flash",
+            ...(config.audio ? { audio: config.audio } : {}),
           },
         });
         const errMsg2 = await extractInvokeError(error, data);

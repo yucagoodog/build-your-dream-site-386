@@ -1052,6 +1052,7 @@ function FullStepCard({ step, index, imgBlocksByCategory, vidBlocksByCategory, o
                   seed={config.seed === -1 ? "" : String(config.seed || "")} setSeed={(v) => onUpdateConfig("seed", parseInt(v) || 0)}
                   promptExpansion={config.enable_prompt_expansion ?? true} setPromptExpansion={(v) => onUpdateConfig("enable_prompt_expansion", v)}
                   audioEnabled={config.generate_audio ?? false} setAudioEnabled={(v) => onUpdateConfig("generate_audio", v)}
+                  audioFileUrl={config.audio || ""} setAudioFileUrl={(v) => onUpdateConfig("audio", v)}
                   videoModel={config.model || "alibaba/wan-2.6/image-to-video-flash"} />
               </div>
             )}
