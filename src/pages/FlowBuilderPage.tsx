@@ -24,7 +24,7 @@ import { downloadFile } from "@/lib/download";
 import {
   ImageSourceSlots, SeedImageUpload,
   ImagePromptSection, ImageParamsSection,
-  VideoPromptSection, VideoParamsSection,
+  VideoModelSelector, VideoPromptSection, VideoParamsSection,
   UpscaleParamsSection, OverlayParamsSection,
 } from "@/components/generation/SharedGenerationUI";
 
@@ -1035,10 +1035,12 @@ function FullStepCard({ step, index, imgBlocksByCategory, vidBlocksByCategory, o
 
             {step.step_type === "video_generation" && (
               <div className="space-y-4">
+                <VideoModelSelector videoModel={config.model || "alibaba/wan-2.6/image-to-video-flash"} setVideoModel={(v) => onUpdateConfig("model", v)} />
+                <Separator />
                 {index === 0 && (
                   <SeedImageUpload imageUrl={config.seed_image_url || ""} setImageUrl={(v) => onUpdateConfig("seed_image_url", v)} />
                 )}
-                <Separator />
+                {index === 0 && <Separator />}
                 <VideoPromptSection prompt={config.prompt || ""} setPrompt={setConfigPrompt}
                   negativePrompt={config.negative_prompt || ""} setNegativePrompt={setConfigNeg}
                   blocksByCategory={vidBlocksByCategory} duration={config.duration || 5} />
@@ -1050,7 +1052,7 @@ function FullStepCard({ step, index, imgBlocksByCategory, vidBlocksByCategory, o
                   seed={config.seed === -1 ? "" : String(config.seed || "")} setSeed={(v) => onUpdateConfig("seed", parseInt(v) || 0)}
                   promptExpansion={config.enable_prompt_expansion ?? true} setPromptExpansion={(v) => onUpdateConfig("enable_prompt_expansion", v)}
                   audioEnabled={config.generate_audio ?? false} setAudioEnabled={(v) => onUpdateConfig("generate_audio", v)}
-                  videoModel={config.model || "alibaba/wan-2.6/image-to-video-flash"} setVideoModel={(v) => onUpdateConfig("model", v)} />
+                  videoModel={config.model || "alibaba/wan-2.6/image-to-video-flash"} />
               </div>
             )}
 

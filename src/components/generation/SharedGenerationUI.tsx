@@ -464,13 +464,41 @@ export function VideoPromptSection({ prompt, setPrompt, negativePrompt, setNegat
   );
 }
 
+/* ─── Video Model Selector (standalone, goes at top) ─── */
+export function VideoModelSelector({
+  videoModel, setVideoModel,
+}: {
+  videoModel: string; setVideoModel: (v: string) => void;
+}) {
+  return (
+    <section>
+      <Label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 block">Video Model</Label>
+      <div className="grid grid-cols-2 gap-1.5">
+        {[
+          { key: "alibaba/wan-2.6/image-to-video-flash", label: "Flash", desc: "Fast · ≤10s · ~$0.02/s" },
+          { key: "alibaba/wan-2.6/image-to-video", label: "Standard", desc: "HQ · ≤15s · ~$0.10/s" },
+        ].map((m) => (
+          <button key={m.key} onClick={() => setVideoModel(m.key)}
+            className={cn("rounded-lg py-3 px-3 text-left transition-colors border",
+              videoModel === m.key
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-surface-1 text-muted-foreground hover:text-foreground border-border/50")}>
+            <span className="text-xs font-semibold block">{m.label}</span>
+            <span className="text-[10px] opacity-70">{m.desc}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 /* ─── Video Parameters ─── */
 export function VideoParamsSection({
   resolution, setResolution, shotType, setShotType,
   duration, setDuration, randomSeed, setRandomSeed,
   seed, setSeed, promptExpansion, setPromptExpansion,
   audioEnabled, setAudioEnabled,
-  videoModel, setVideoModel,
+  videoModel,
 }: {
   resolution: string; setResolution: (v: string) => void;
   shotType: string; setShotType: (v: string) => void;
@@ -479,27 +507,20 @@ export function VideoParamsSection({
   seed: string; setSeed: (v: string) => void;
   promptExpansion: boolean; setPromptExpansion: (v: boolean) => void;
   audioEnabled: boolean; setAudioEnabled: (v: boolean) => void;
-  videoModel: string; setVideoModel: (v: string) => void;
+  videoModel: string;
 }) {
+  const isStandard = videoModel === "alibaba/wan-2.6/image-to-video";
+  const maxDuration = isStandard ? 15 : 10;
+  const minDuration = isStandard ? 5 : 2;
+
+  // Clamp duration when switching models
+  useEffect(() => {
+    if (duration > maxDuration) setDuration(maxDuration);
+    if (duration < minDuration) setDuration(minDuration);
+  }, [videoModel]);
+
   return (
     <section className="space-y-3">
-      {/* Model selector */}
-      <div className="space-y-1">
-        <Label className="text-[10px] text-muted-foreground">Video Model</Label>
-        <div className="grid grid-cols-2 gap-1.5">
-          {[
-            { key: "alibaba/wan-2.6/image-to-video-flash", label: "Flash", desc: "Fast · ~$0.02/s" },
-            { key: "alibaba/wan-2.6/image-to-video", label: "Standard", desc: "HQ · ~$0.10/s" },
-          ].map((m) => (
-            <button key={m.key} onClick={() => setVideoModel(m.key)}
-              className={cn("rounded-lg py-2.5 px-2 text-left transition-colors",
-                videoModel === m.key ? "bg-primary text-primary-foreground" : "bg-surface-1 text-muted-foreground hover:text-foreground")}>
-              <span className="text-[11px] font-medium block">{m.label}</span>
-              <span className="text-[9px] opacity-70">{m.desc}</span>
-            </button>
-          ))}
-        </div>
-      </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label className="text-[10px] text-muted-foreground">Resolution</Label>
@@ -521,13 +542,14 @@ export function VideoParamsSection({
           <Label className="text-[10px] text-muted-foreground">Duration</Label>
           <span className="text-xs text-muted-foreground font-mono">{duration}s</span>
         </div>
-        <Slider value={[duration]} onValueChange={(v) => setDuration(v[0])} min={2} max={15} step={1} />
+        <Slider value={[duration]} onValueChange={(v) => setDuration(v[0])} min={minDuration} max={maxDuration} step={1} />
+        <p className="text-[9px] text-muted-foreground">{isStandard ? "Standard: 5–15s (min charge 5s)" : "Flash: 2–10s"}</p>
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="flex items-center gap-2"><Switch checked={randomSeed} onCheckedChange={setRandomSeed} /><Label className="text-xs">Random Seed</Label></div>
         {!randomSeed && <Input type="number" placeholder="Seed" value={seed} onChange={(e) => setSeed(e.target.value)} className="bg-surface-1 h-9 w-24 text-xs font-mono" />}
         <div className="flex items-center gap-2"><Switch checked={promptExpansion} onCheckedChange={setPromptExpansion} /><Label className="text-xs">Expand</Label></div>
-        <div className="flex items-center gap-2"><Switch checked={audioEnabled} onCheckedChange={setAudioEnabled} /><Label className="text-xs">Audio</Label></div>
+        <div className="flex items-center gap-2"><Switch checked={audioEnabled} onCheckedChange={setAudioEnabled} /><Label className="text-xs">{isStandard ? "Generate Audio" : "Audio"}</Label></div>
       </div>
     </section>
   );
