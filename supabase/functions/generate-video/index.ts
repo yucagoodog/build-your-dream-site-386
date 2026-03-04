@@ -61,6 +61,7 @@ Deno.serve(async (req) => {
       let prompt: string, negative_prompt: string, seed_image_url: string;
       let resolution: string, duration: number, seed: number, shot_type: string;
       let enable_prompt_expansion: boolean, generate_audio: boolean;
+      let audio_file_url: string | null = null;
       let scene_id: string | null = null;
 
       if (body.scene_id) {
@@ -93,6 +94,7 @@ Deno.serve(async (req) => {
         shot_type = body.shot_type || "single";
         enable_prompt_expansion = body.enable_prompt_expansion ?? true;
         generate_audio = body.generate_audio ?? false;
+        audio_file_url = body.audio || null;
       }
 
       const model = body.model || "alibaba/wan-2.6/image-to-video-flash";
@@ -119,15 +121,18 @@ Deno.serve(async (req) => {
           ? (resolution === "1080p" ? 0.075 : 0.05)
           : (resolution === "1080p" ? 0.0375 : 0.025)) * duration;
 
+      const apiBody: Record<string, any> = {
+        model,
+        prompt, negative_prompt, image: seed_image_url,
+        resolution, duration, seed, shot_type,
+        enable_prompt_expansion, generate_audio,
+      };
+      if (audio_file_url) apiBody.audio = audio_file_url;
+
       const generateRes = await fetch("https://api.atlascloud.ai/api/v1/model/generateVideo", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${settings.atlas_api_key}` },
-        body: JSON.stringify({
-          model,
-          prompt, negative_prompt, image: seed_image_url,
-          resolution, duration, seed, shot_type,
-          enable_prompt_expansion, generate_audio,
-        }),
+        body: JSON.stringify(apiBody),
       });
 
       const generateResult = await generateRes.json();
@@ -158,6 +163,7 @@ Deno.serve(async (req) => {
             model, resolution, duration, seed, shot_type,
             prompt_expansion: enable_prompt_expansion,
             audio: generate_audio,
+            audio_file_url: audio_file_url || undefined,
             seed_image_url,
           },
           cost: costEstimate,

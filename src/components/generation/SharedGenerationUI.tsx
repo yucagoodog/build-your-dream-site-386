@@ -498,6 +498,7 @@ export function VideoParamsSection({
   duration, setDuration, randomSeed, setRandomSeed,
   seed, setSeed, promptExpansion, setPromptExpansion,
   audioEnabled, setAudioEnabled,
+  audioFileUrl, setAudioFileUrl,
   videoModel,
 }: {
   resolution: string; setResolution: (v: string) => void;
@@ -507,17 +508,40 @@ export function VideoParamsSection({
   seed: string; setSeed: (v: string) => void;
   promptExpansion: boolean; setPromptExpansion: (v: boolean) => void;
   audioEnabled: boolean; setAudioEnabled: (v: boolean) => void;
+  audioFileUrl: string; setAudioFileUrl: (v: string) => void;
   videoModel: string;
 }) {
+  const { user } = useAuth();
   const isStandard = videoModel === "alibaba/wan-2.6/image-to-video";
   const maxDuration = 15;
   const minDuration = isStandard ? 5 : 2;
+  const [audioUploading, setAudioUploading] = useState(false);
+  const [audioUrlInput, setAudioUrlInput] = useState("");
 
-  // Clamp duration when switching models
+  // Clamp duration & auto-set resolution when switching models
   useEffect(() => {
     if (duration > maxDuration) setDuration(maxDuration);
     if (duration < minDuration) setDuration(minDuration);
+    // Auto-set default resolution per model
+    setResolution(isStandard ? "1080p" : "720p");
   }, [videoModel]);
+
+  const handleAudioUpload = async () => {
+    const input = document.createElement("input");
+    input.type = "file"; input.accept = "audio/*";
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file || !user) return;
+      setAudioUploading(true);
+      const ext = file.name.split(".").pop();
+      const path = `${user.id}/audio/${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("seed-images").upload(path, file);
+      if (error) { toast({ title: "Upload failed", description: error.message, variant: "destructive" }); }
+      else { const { data } = supabase.storage.from("seed-images").getPublicUrl(path); setAudioFileUrl(data.publicUrl); }
+      setAudioUploading(false);
+    };
+    input.click();
+  };
 
   return (
     <section className="space-y-3">
@@ -545,11 +569,44 @@ export function VideoParamsSection({
         <Slider value={[duration]} onValueChange={(v) => setDuration(v[0])} min={minDuration} max={maxDuration} step={1} />
         <p className="text-[9px] text-muted-foreground">{isStandard ? "Standard: 5–15s (min charge 5s)" : "Flash: 2–15s (min charge 2s)"}</p>
       </div>
+
+      {/* Audio file upload */}
+      <Collapsible>
+        <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 text-xs font-medium">
+          Audio File <span className="text-[10px] text-muted-foreground font-normal ml-1">(optional voiceover/music)</span>
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-2 pt-1">
+          {audioFileUrl ? (
+            <div className="flex items-center gap-2 rounded-lg bg-surface-1 px-3 py-2">
+              <span className="text-xs text-foreground truncate flex-1">{audioFileUrl.split("/").pop()}</span>
+              <button onClick={() => setAudioFileUrl("")} className="text-muted-foreground hover:text-destructive"><X className="h-3.5 w-3.5" /></button>
+            </div>
+          ) : (
+            <>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="flex-1" disabled={audioUploading} onClick={handleAudioUpload}>
+                  {audioUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Upload
+                </Button>
+                <Button variant="outline" size="sm" className="flex-1" onClick={async () => {
+                  try { const text = await navigator.clipboard.readText(); if (text.startsWith("http")) setAudioFileUrl(text); else toast({ title: "No URL in clipboard" }); } catch { toast({ title: "Clipboard denied" }); }
+                }}><Clipboard className="h-4 w-4" /> Paste</Button>
+              </div>
+              <div className="flex gap-2">
+                <Input placeholder="Paste audio URL..." value={audioUrlInput} onChange={(e) => setAudioUrlInput(e.target.value)} className="bg-surface-1 text-sm" />
+                <Button size="sm" disabled={!audioUrlInput} onClick={() => { setAudioFileUrl(audioUrlInput); setAudioUrlInput(""); }}>Add</Button>
+              </div>
+            </>
+          )}
+          <p className="text-[9px] text-muted-foreground">Upload audio for lip-sync voiceover or background music. Overrides Generate Audio.</p>
+        </CollapsibleContent>
+      </Collapsible>
+
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="flex items-center gap-2"><Switch checked={randomSeed} onCheckedChange={setRandomSeed} /><Label className="text-xs">Random Seed</Label></div>
         {!randomSeed && <Input type="number" placeholder="Seed" value={seed} onChange={(e) => setSeed(e.target.value)} className="bg-surface-1 h-9 w-24 text-xs font-mono" />}
         <div className="flex items-center gap-2"><Switch checked={promptExpansion} onCheckedChange={setPromptExpansion} /><Label className="text-xs">Expand</Label></div>
-        <div className="flex items-center gap-2"><Switch checked={audioEnabled} onCheckedChange={setAudioEnabled} /><Label className="text-xs">{isStandard ? "Generate Audio" : "Audio"}</Label></div>
+        <div className="flex items-center gap-2"><Switch checked={audioEnabled} onCheckedChange={setAudioEnabled} /><Label className="text-xs">Generate Audio</Label></div>
       </div>
     </section>
   );
