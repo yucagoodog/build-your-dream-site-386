@@ -475,8 +475,8 @@ export function VideoModelSelector({
       <Label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 block">Video Model</Label>
       <div className="grid grid-cols-2 gap-1.5">
         {[
-          { key: "alibaba/wan-2.6/image-to-video-flash", label: "Flash", desc: "Fast · ≤10s · ~$0.02/s" },
-          { key: "alibaba/wan-2.6/image-to-video", label: "Standard", desc: "HQ · ≤15s · ~$0.10/s" },
+          { key: "alibaba/wan-2.6/image-to-video-flash", label: "Flash", desc: "Fast · 2–15s · ~$0.025/s" },
+          { key: "alibaba/wan-2.6/image-to-video", label: "Standard", desc: "HQ · 5–15s · ~$0.10/s" },
         ].map((m) => (
           <button key={m.key} onClick={() => setVideoModel(m.key)}
             className={cn("rounded-lg py-3 px-3 text-left transition-colors border",
@@ -510,7 +510,7 @@ export function VideoParamsSection({
   videoModel: string;
 }) {
   const isStandard = videoModel === "alibaba/wan-2.6/image-to-video";
-  const maxDuration = isStandard ? 15 : 10;
+  const maxDuration = 15;
   const minDuration = isStandard ? 5 : 2;
 
   // Clamp duration when switching models
@@ -543,7 +543,7 @@ export function VideoParamsSection({
           <span className="text-xs text-muted-foreground font-mono">{duration}s</span>
         </div>
         <Slider value={[duration]} onValueChange={(v) => setDuration(v[0])} min={minDuration} max={maxDuration} step={1} />
-        <p className="text-[9px] text-muted-foreground">{isStandard ? "Standard: 5–15s (min charge 5s)" : "Flash: 2–10s"}</p>
+        <p className="text-[9px] text-muted-foreground">{isStandard ? "Standard: 5–15s (min charge 5s)" : "Flash: 2–15s (min charge 2s)"}</p>
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="flex items-center gap-2"><Switch checked={randomSeed} onCheckedChange={setRandomSeed} /><Label className="text-xs">Random Seed</Label></div>
