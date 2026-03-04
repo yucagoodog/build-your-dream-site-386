@@ -513,17 +513,25 @@ export function VideoParamsSection({
 }) {
   const { user } = useAuth();
   const isStandard = videoModel === "alibaba/wan-2.6/image-to-video";
-  const maxDuration = 15;
-  const minDuration = isStandard ? 5 : 2;
+  const STANDARD_DURATIONS = [5, 10, 15];
   const [audioUploading, setAudioUploading] = useState(false);
   const [audioUrlInput, setAudioUrlInput] = useState("");
 
   // Clamp duration & auto-set resolution when switching models
   useEffect(() => {
-    if (duration > maxDuration) setDuration(maxDuration);
-    if (duration < minDuration) setDuration(minDuration);
-    // Auto-set default resolution per model
-    setResolution(isStandard ? "1080p" : "720p");
+    if (isStandard) {
+      // Standard only supports discrete 5/10/15
+      if (!STANDARD_DURATIONS.includes(duration)) {
+        const closest = STANDARD_DURATIONS.reduce((a, b) => Math.abs(b - duration) < Math.abs(a - duration) ? b : a);
+        setDuration(closest);
+      }
+      setResolution("1080p");
+    } else {
+      // Flash: 2–15 continuous
+      if (duration > 15) setDuration(15);
+      if (duration < 2) setDuration(2);
+      setResolution("720p");
+    }
   }, [videoModel]);
 
   const handleAudioUpload = async () => {
@@ -550,7 +558,11 @@ export function VideoParamsSection({
           <Label className="text-[10px] text-muted-foreground">Resolution</Label>
           <Select value={resolution} onValueChange={setResolution}>
             <SelectTrigger className="bg-surface-1 h-9 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="720p">720p</SelectItem><SelectItem value="1080p">1080p</SelectItem></SelectContent>
+            <SelectContent>
+              {isStandard && <SelectItem value="480p">480p</SelectItem>}
+              <SelectItem value="720p">720p</SelectItem>
+              <SelectItem value="1080p">1080p</SelectItem>
+            </SelectContent>
           </Select>
         </div>
         <div className="space-y-1">
@@ -566,8 +578,19 @@ export function VideoParamsSection({
           <Label className="text-[10px] text-muted-foreground">Duration</Label>
           <span className="text-xs text-muted-foreground font-mono">{duration}s</span>
         </div>
-        <Slider value={[duration]} onValueChange={(v) => setDuration(v[0])} min={minDuration} max={maxDuration} step={1} />
-        <p className="text-[9px] text-muted-foreground">{isStandard ? "Standard: 5–15s (min charge 5s)" : "Flash: 2–15s (min charge 2s)"}</p>
+        {isStandard ? (
+          <Select value={String(duration)} onValueChange={(v) => setDuration(Number(v))}>
+            <SelectTrigger className="bg-surface-1 h-9 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {STANDARD_DURATIONS.map((d) => (
+                <SelectItem key={d} value={String(d)}>{d}s</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <Slider value={[duration]} onValueChange={(v) => setDuration(v[0])} min={2} max={15} step={1} />
+        )}
+        <p className="text-[9px] text-muted-foreground">{isStandard ? "Standard: 5s, 10s, or 15s" : "Flash: 2–15s (any duration)"}</p>
       </div>
 
       {/* Audio file upload */}
