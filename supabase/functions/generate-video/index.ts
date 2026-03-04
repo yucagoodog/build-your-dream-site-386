@@ -206,6 +206,7 @@ Deno.serve(async (req) => {
         { headers: { Authorization: `Bearer ${settings?.atlas_api_key}` } }
       );
       const pollResult = await pollRes.json();
+      console.log("Poll result for", generation_id, ":", JSON.stringify({ status: pollResult?.data?.status, outputs: pollResult?.data?.outputs }));
       const status = pollResult?.data?.status;
 
       if (status === "completed" || status === "succeeded") {

@@ -341,6 +341,26 @@ const CreatePage = () => {
     pollRef.current = interval;
   };
 
+  // Auto-resume polling for stuck "processing" generations on mount / query refresh
+  useEffect(() => {
+    if (mode !== "video" || !recentVideos.length) return;
+    const processing = recentVideos.find((v: any) => v.status === "processing");
+    if (processing && !pollRef.current) {
+      setLastGeneratedId(processing.id);
+      pollVideoGen(processing.id);
+    }
+  }, [recentVideos, mode]);
+
+  // Same for images
+  useEffect(() => {
+    if ((mode !== "image" && mode !== "upscale") || !recentImages.length) return;
+    const processing = recentImages.find((v: any) => v.status === "processing" || v.status === "queued");
+    if (processing && !pollRef.current) {
+      setLastGeneratedId(processing.id);
+      pollImageEdit(processing.id);
+    }
+  }, [recentImages, mode]);
+
   useEffect(() => {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, []);
