@@ -14,6 +14,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { downloadFile } from "@/lib/download";
+import { extractInvokeError } from "@/lib/invoke-error";
 
 const STEP_ICONS: Record<string, any> = {
   image_generation: ImageIcon,
@@ -154,7 +155,8 @@ const FlowExecutionPage = () => {
             model: config.model || "alibaba/wan-2.6/image-edit",
           },
         });
-        if (error || data?.error) throw new Error(data?.error || error?.message);
+        const errMsg1 = await extractInvokeError(error, data);
+        if (errMsg1) throw new Error(errMsg1);
         const editId = data?.edit?.id;
         if (!editId) throw new Error("No edit ID returned");
 
@@ -177,7 +179,8 @@ const FlowExecutionPage = () => {
             model: config.model || "alibaba/wan-2.6/image-to-video-flash",
           },
         });
-        if (error || data?.error) throw new Error(data?.error || error?.message);
+        const errMsg2 = await extractInvokeError(error, data);
+        if (errMsg2) throw new Error(errMsg2);
         const genId = data?.generation?.id;
         if (!genId) throw new Error("No generation ID returned");
 
@@ -195,8 +198,8 @@ const FlowExecutionPage = () => {
             resolution: config.resolution || "1k",
           },
         });
-        const errMsg = data?.error || error?.message;
-        if (error || data?.error) throw new Error(errMsg || "Upscale failed");
+        const errMsg3 = await extractInvokeError(error, data);
+        if (errMsg3) throw new Error(errMsg3);
         const editId = data?.edit?.id;
         if (!editId) throw new Error("No edit ID returned");
 
@@ -217,7 +220,8 @@ const FlowExecutionPage = () => {
             position_y: config.position_y ?? 0,
           },
         });
-        if (error || data?.error) throw new Error(data?.error || error?.message || "Overlay failed");
+        const errMsg4 = await extractInvokeError(error, data);
+        if (errMsg4) throw new Error(errMsg4);
         resultUrl = data?.result_url;
       }
 

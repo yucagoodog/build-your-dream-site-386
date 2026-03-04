@@ -21,6 +21,7 @@ import { downloadFile } from "@/lib/download";
 import { saveToDrive } from "@/lib/save-to-drive";
 import { IMAGE_SIZES } from "@/lib/image-sizes";
 import { formatDistanceToNow } from "date-fns";
+import { extractInvokeError } from "@/lib/invoke-error";
 import {
   ImageSourceSlots, SeedImageUpload,
   ImagePromptSection, ImageParamsSection,
@@ -221,8 +222,8 @@ const CreatePage = () => {
           enable_prompt_expansion: imgPromptExpansion, model: imageModel,
         },
       });
-      if (error) throw new Error(error.message);
-      if (data?.error) throw new Error(data.error);
+      const errMsg = await extractInvokeError(error, data);
+      if (errMsg) throw new Error(errMsg);
       toast({ title: "Generation started!" });
       queryClient.invalidateQueries({ queryKey: ["recent_images"] });
       if (data?.edit?.id) { setLastGeneratedId(data.edit.id); pollImageEdit(data.edit.id); }
@@ -244,8 +245,8 @@ const CreatePage = () => {
           model: videoModel,
         },
       });
-      if (error) throw new Error(error.message);
-      if (data?.error) throw new Error(data.error);
+      const errMsg = await extractInvokeError(error, data);
+      if (errMsg) throw new Error(errMsg);
       toast({ title: "Video generation started!" });
       queryClient.invalidateQueries({ queryKey: ["recent_videos"] });
       if (data?.generation?.id) { setLastGeneratedId(data.generation.id); pollVideoGen(data.generation.id); }
@@ -269,8 +270,8 @@ const CreatePage = () => {
           resolution: upscaleResolution,
         },
       });
-      if (error) throw new Error(error.message);
-      if (data?.error) throw new Error(data.error);
+      const errMsg = await extractInvokeError(error, data);
+      if (errMsg) throw new Error(errMsg);
       toast({ title: "Upscale started!" });
       queryClient.invalidateQueries({ queryKey: ["recent_images"] });
       if (data?.edit?.id) { setLastGeneratedId(data.edit.id); pollImageEdit(data.edit.id); }
@@ -294,8 +295,8 @@ const CreatePage = () => {
           position_y: overlayPosY,
         },
       });
-      if (error) throw new Error(error.message);
-      if (data?.error) throw new Error(data.error);
+      const errMsg = await extractInvokeError(error, data);
+      if (errMsg) throw new Error(errMsg);
       setOverlayResultUrl(data.result_url);
       toast({ title: "Overlay complete!" });
     } catch (err: any) {
