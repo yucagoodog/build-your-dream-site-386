@@ -33,13 +33,13 @@ type Mode = "image" | "video" | "upscale" | "overlay";
 
 function estimateVideoCost(resolution: string, duration: number, audio: boolean, model: string): number {
   if (model === "alibaba/wan-2.6/image-to-video") {
-    // Standard: 720p=$0.10/s, 1080p=$0.15/s
+    // Standard: 720p=$0.10/s, 1080p=$0.15/s (audio included in price)
     return (resolution === "1080p" ? 0.15 : 0.10) * duration;
   }
-  // Flash pricing
+  // Flash: with audio = full price, silent = 50% off
   const perSecond = audio
-    ? (resolution === "1080p" ? 0.12 : 0.06)
-    : (resolution === "1080p" ? 0.0262 : 0.0175);
+    ? (resolution === "1080p" ? 0.075 : 0.05)
+    : (resolution === "1080p" ? 0.0375 : 0.025);
   return perSecond * duration;
 }
 
