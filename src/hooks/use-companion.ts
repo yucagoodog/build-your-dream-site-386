@@ -375,6 +375,30 @@ export function useCompanion() {
     return null;
   }, [rooms, roomVariants, companion]);
 
+  const removeAllBackgrounds = useCallback(async () => {
+    if (!user) return;
+    const charAssets = assets.filter(
+      (a: any) => ["emotion", "outfit", "portrait"].includes(a.asset_type) && a.image_url && a.status === "approved"
+    );
+    if (charAssets.length === 0) {
+      toast({ title: "No approved character assets to process" });
+      return;
+    }
+    toast({ title: `✨ Removing backgrounds from ${charAssets.length} assets...` });
+    let success = 0;
+    let failed = 0;
+    for (const asset of charAssets) {
+      try {
+        const { data, error } = await supabase.functions.invoke("remove-bg", {
+          body: { image_url: asset.image_url, asset_id: asset.id },
+        });
+        if (error || data?.error) { failed++; } else { success++; }
+      } catch { failed++; }
+    }
+    qc.invalidateQueries({ queryKey: ["companion_assets"] });
+    toast({ title: `✅ Done! ${success} processed, ${failed} failed` });
+  }, [assets, user, qc]);
+
   return {
     companion, companionLoading,
     assets, rooms, roomVariants, scenarios, interactions,
@@ -382,7 +406,7 @@ export function useCompanion() {
     updateAssetStatus, updateVariantStatus,
     createRoom, deleteRoom, createScenario, deleteScenario,
     sendMessage, performAction, moveToRoom,
-    resolveAsset, resolveBackground,
+    resolveAsset, resolveBackground, removeAllBackgrounds,
     generating, genStatus, lastResult, chatLoading,
   };
 }
