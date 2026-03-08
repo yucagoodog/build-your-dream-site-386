@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Check, Sparkles, ChevronDown, ChevronUp, Pencil } from "lucide-react";
+import { Loader2, Check, Sparkles, ChevronDown, ChevronUp, Pencil, Eraser } from "lucide-react";
 import { AssetCard } from "./AssetCard";
 import { EMOTIONS, OUTFITS, EMOTION_PROMPTS, OUTFIT_PROMPTS } from "@/lib/companion-prompts";
 
@@ -12,11 +12,12 @@ interface Props {
   assets: any[];
   generateAsset: (type: string, tags: Record<string, string>, prompt?: string) => Promise<void>;
   updateAssetStatus: (id: string, status: "approved" | "rejected") => Promise<void>;
+  removeAllBackgrounds: () => Promise<void>;
   generating: boolean;
   genStatus: string;
 }
 
-export function CharacterStudio({ companion, assets, generateAsset, updateAssetStatus, generating, genStatus }: Props) {
+export function CharacterStudio({ companion, assets, generateAsset, updateAssetStatus, removeAllBackgrounds, generating, genStatus }: Props) {
   const [customPrompt, setCustomPrompt] = useState("");
   const [selectedEmotion, setSelectedEmotion] = useState<string | null>(null);
   const [selectedOutfit, setSelectedOutfit] = useState<string | null>(null);
@@ -255,13 +256,24 @@ export function CharacterStudio({ companion, assets, generateAsset, updateAssetS
       {/* All assets */}
       {assets.length > 0 && (
         <div>
-          <button
-            onClick={() => setShowAllAssets(!showAllAssets)}
-            className="flex items-center gap-1 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
-          >
-            All Assets ({assets.length})
-            {showAllAssets ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-          </button>
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => setShowAllAssets(!showAllAssets)}
+              className="flex items-center gap-1 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+            >
+              All Assets ({assets.length})
+              {showAllAssets ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            </button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1 text-[10px] h-7"
+              onClick={removeAllBackgrounds}
+            >
+              <Eraser className="h-3 w-3" />
+              Remove All BGs
+            </Button>
+          </div>
           {showAllAssets && (
             <div className="grid grid-cols-3 gap-2 mt-2">
               {assets.map(a => (
