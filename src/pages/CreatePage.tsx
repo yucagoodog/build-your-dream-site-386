@@ -7,10 +7,12 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Loader2, Sparkles, Play, Download,
   Clock, DollarSign, AlertCircle,
   Image as ImageIcon, Clapperboard, ZoomIn, FolderOpen, Layers,
+  ChevronDown, Settings2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -22,6 +24,9 @@ import { saveToDrive } from "@/lib/save-to-drive";
 import { IMAGE_SIZES } from "@/lib/image-sizes";
 import { formatDistanceToNow } from "date-fns";
 import { extractInvokeError } from "@/lib/invoke-error";
+import { usePromptHistory } from "@/hooks/use-prompt-history";
+import { PromptHistoryDropdown } from "@/components/PromptHistoryDropdown";
+import { GenerationProgress } from "@/components/GenerationProgress";
 import {
   ImageSourceSlots, SeedImageUpload,
   ImagePromptSection, ImageParamsSection,
@@ -33,11 +38,9 @@ type Mode = "image" | "video" | "upscale" | "overlay";
 
 function estimateVideoCost(resolution: string, duration: number, audio: boolean, model: string): number {
   if (model === "alibaba/wan-2.6/image-to-video") {
-    // Standard: no silent discount; 480p=$0.07/s, 720p=$0.10/s, 1080p=$0.15/s
     const rate = resolution === "1080p" ? 0.15 : resolution === "480p" ? 0.07 : 0.10;
     return rate * duration;
   }
-  // Flash: with audio = full price, silent = 50% off
   const perSecond = audio
     ? (resolution === "1080p" ? 0.075 : 0.05)
     : (resolution === "1080p" ? 0.0375 : 0.025);
@@ -48,6 +51,7 @@ const CreatePage = () => {
   const { user } = useAuth();
   const location = useLocation();
   const queryClient = useQueryClient();
+  const { history, savePrompt, clearHistory } = usePromptHistory();
 
   // Mode
   const [mode, setMode] = useState<Mode>("image");
@@ -58,7 +62,11 @@ const CreatePage = () => {
   const [generating, setGenerating] = useState(false);
   const [defaultsLoaded, setDefaultsLoaded] = useState(false);
   const [lastGeneratedId, setLastGeneratedId] = useState<string | null>(null);
+  const [generationStatus, setGenerationStatus] = useState<"idle" | "queued" | "processing" | "completed" | "failed">("idle");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Progressive disclosure
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Image state
   const [slotImages, setSlotImages] = useState<(string | null)[]>([null, null, null, null]);
@@ -216,6 +224,8 @@ const CreatePage = () => {
     if (filledSlots.length === 0 || !prompt.trim() || !user) return;
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     setGenerating(true);
+    setGenerationStatus("queued");
+    savePrompt({ prompt, negativePrompt, mode: "image" });
     try {
       const { data, error } = await supabase.functions.invoke("generate-image", {
         body: {
@@ -226,10 +236,12 @@ const CreatePage = () => {
       });
       const errMsg = await extractInvokeError(error, data);
       if (errMsg) throw new Error(errMsg);
+      setGenerationStatus("processing");
       toast({ title: "Generation started!" });
       queryClient.invalidateQueries({ queryKey: ["recent_images"] });
       if (data?.edit?.id) { setLastGeneratedId(data.edit.id); pollImageEdit(data.edit.id); }
     } catch (err: any) {
+      setGenerationStatus("failed");
       toast({ title: "Generation failed", description: err.message, variant: "destructive" });
     } finally { setGenerating(false); }
   };
@@ -238,6 +250,8 @@ const CreatePage = () => {
     if (!seedImageUrl || !prompt.trim() || !user) return;
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     setGenerating(true);
+    setGenerationStatus("queued");
+    savePrompt({ prompt, negativePrompt, mode: "video" });
     try {
       const { data, error } = await supabase.functions.invoke("generate-video", {
         body: {
@@ -250,10 +264,12 @@ const CreatePage = () => {
       });
       const errMsg = await extractInvokeError(error, data);
       if (errMsg) throw new Error(errMsg);
+      setGenerationStatus("processing");
       toast({ title: "Video generation started!" });
       queryClient.invalidateQueries({ queryKey: ["recent_videos"] });
       if (data?.generation?.id) { setLastGeneratedId(data.generation.id); pollVideoGen(data.generation.id); }
     } catch (err: any) {
+      setGenerationStatus("failed");
       toast({ title: "Generation failed", description: err.message, variant: "destructive" });
     } finally { setGenerating(false); }
   };
@@ -262,6 +278,7 @@ const CreatePage = () => {
     if (!upscaleImageUrl || !user) return;
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     setGenerating(true);
+    setGenerationStatus("queued");
     try {
       const { data, error } = await supabase.functions.invoke("upscale-image", {
         body: {
@@ -275,10 +292,12 @@ const CreatePage = () => {
       });
       const errMsg = await extractInvokeError(error, data);
       if (errMsg) throw new Error(errMsg);
+      setGenerationStatus("processing");
       toast({ title: "Upscale started!" });
       queryClient.invalidateQueries({ queryKey: ["recent_images"] });
       if (data?.edit?.id) { setLastGeneratedId(data.edit.id); pollImageEdit(data.edit.id); }
     } catch (err: any) {
+      setGenerationStatus("failed");
       toast({ title: "Upscale failed", description: err.message, variant: "destructive" });
     } finally { setGenerating(false); }
   };
@@ -286,6 +305,7 @@ const CreatePage = () => {
   const handleGenerateOverlay = async () => {
     if (!overlayBaseUrl || !overlayPngUrl || !user) return;
     setGenerating(true);
+    setGenerationStatus("processing");
     setOverlayResultUrl(null);
     try {
       const { data, error } = await supabase.functions.invoke("composite-image", {
@@ -301,8 +321,10 @@ const CreatePage = () => {
       const errMsg = await extractInvokeError(error, data);
       if (errMsg) throw new Error(errMsg);
       setOverlayResultUrl(data.result_url);
+      setGenerationStatus("completed");
       toast({ title: "Overlay complete!" });
     } catch (err: any) {
+      setGenerationStatus("failed");
       toast({ title: "Overlay failed", description: err.message, variant: "destructive" });
     } finally { setGenerating(false); }
   };
@@ -315,9 +337,12 @@ const CreatePage = () => {
         if (data?.status === "completed" || data?.status === "failed") {
           clearInterval(interval);
           if (pollRef.current === interval) pollRef.current = null;
+          setGenerationStatus(data.status);
           queryClient.invalidateQueries({ queryKey: ["recent_images"] });
           queryClient.invalidateQueries({ queryKey: ["library_image_edits"] });
           toast({ title: data.status === "completed" ? "Complete!" : "Failed", description: data.error, variant: data.status === "failed" ? "destructive" : undefined });
+        } else if (data?.status === "processing") {
+          setGenerationStatus("processing");
         }
       } catch {}
     }, 4000);
@@ -332,9 +357,12 @@ const CreatePage = () => {
         if (data?.status === "completed" || data?.status === "failed") {
           clearInterval(interval);
           if (pollRef.current === interval) pollRef.current = null;
+          setGenerationStatus(data.status);
           queryClient.invalidateQueries({ queryKey: ["recent_videos"] });
           queryClient.invalidateQueries({ queryKey: ["library_video_gens"] });
           toast({ title: data.status === "completed" ? "Video ready!" : "Failed", description: data.error, variant: data.status === "failed" ? "destructive" : undefined });
+        } else if (data?.status === "processing") {
+          setGenerationStatus("processing");
         }
       } catch {}
     }, 4000);
@@ -347,6 +375,7 @@ const CreatePage = () => {
     const processing = recentVideos.find((v: any) => v.status === "processing");
     if (processing && !pollRef.current) {
       setLastGeneratedId(processing.id);
+      setGenerationStatus("processing");
       pollVideoGen(processing.id);
     }
   }, [recentVideos, mode]);
@@ -357,6 +386,7 @@ const CreatePage = () => {
     const processing = recentImages.find((v: any) => v.status === "processing" || v.status === "queued");
     if (processing && !pollRef.current) {
       setLastGeneratedId(processing.id);
+      setGenerationStatus(processing.status as any);
       pollImageEdit(processing.id);
     }
   }, [recentImages, mode]);
@@ -364,6 +394,11 @@ const CreatePage = () => {
   useEffect(() => {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, []);
+
+  // Reset generation status on mode change
+  useEffect(() => {
+    if (!pollRef.current) setGenerationStatus("idle");
+  }, [mode]);
 
   const handleGenerate = () => {
     if (mode === "image") handleGenerateImage();
@@ -381,6 +416,11 @@ const CreatePage = () => {
 
   const recentResults = mode === "video" ? recentVideos : recentImages;
 
+  const handleHistorySelect = (entry: { prompt: string; negativePrompt: string }) => {
+    setPrompt(entry.prompt);
+    setNegativePrompt(entry.negativePrompt);
+  };
+
   return (
     <AppShell title="Create">
       <div className="lg:grid lg:grid-cols-[1fr,1fr] xl:grid-cols-[minmax(0,520px),1fr] lg:gap-0 lg:divide-x lg:divide-border min-h-[calc(100vh-3.5rem-5rem)]">
@@ -396,6 +436,18 @@ const CreatePage = () => {
             </TabsList>
           </Tabs>
 
+          {/* Prompt History (show for image/video modes) */}
+          {(mode === "image" || mode === "video") && (
+            <div className="flex justify-end">
+              <PromptHistoryDropdown
+                history={history}
+                onSelect={handleHistorySelect}
+                onClear={clearHistory}
+                currentMode={mode}
+              />
+            </div>
+          )}
+
           {/* IMAGE MODE */}
           {mode === "image" && (
             <>
@@ -407,13 +459,22 @@ const CreatePage = () => {
                 blocksByCategory={imgBlocksByCategory}
               />
               <Separator />
-              <ImageParamsSection
-                outputSize={outputSize} setOutputSize={setOutputSize}
-                imageModel={imageModel} setImageModel={setImageModel}
-                randomSeed={imgRandomSeed} setRandomSeed={setImgRandomSeed}
-                seed={imgSeed} setSeed={setImgSeed}
-                promptExpansion={imgPromptExpansion} setPromptExpansion={setImgPromptExpansion}
-              />
+              {/* Advanced Settings - Progressive Disclosure */}
+              <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
+                <CollapsibleTrigger className="flex items-center justify-between w-full py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
+                  <span className="flex items-center gap-1.5"><Settings2 className="h-3.5 w-3.5" /> Advanced Settings</span>
+                  <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showAdvanced && "rotate-180")} />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-2">
+                  <ImageParamsSection
+                    outputSize={outputSize} setOutputSize={setOutputSize}
+                    imageModel={imageModel} setImageModel={setImageModel}
+                    randomSeed={imgRandomSeed} setRandomSeed={setImgRandomSeed}
+                    seed={imgSeed} setSeed={setImgSeed}
+                    promptExpansion={imgPromptExpansion} setPromptExpansion={setImgPromptExpansion}
+                  />
+                </CollapsibleContent>
+              </Collapsible>
             </>
           )}
 
@@ -431,17 +492,26 @@ const CreatePage = () => {
                 duration={duration}
               />
               <Separator />
-              <VideoParamsSection
-                resolution={resolution} setResolution={setResolution}
-                shotType={shotType} setShotType={setShotType}
-                duration={duration} setDuration={setDuration}
-                randomSeed={vidRandomSeed} setRandomSeed={setVidRandomSeed}
-                seed={vidSeed} setSeed={setVidSeed}
-                promptExpansion={vidPromptExpansion} setPromptExpansion={setVidPromptExpansion}
-                audioEnabled={audioEnabled} setAudioEnabled={setAudioEnabled}
-                audioFileUrl={audioFileUrl} setAudioFileUrl={setAudioFileUrl}
-                videoModel={videoModel}
-              />
+              {/* Advanced Settings - Progressive Disclosure */}
+              <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
+                <CollapsibleTrigger className="flex items-center justify-between w-full py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
+                  <span className="flex items-center gap-1.5"><Settings2 className="h-3.5 w-3.5" /> Advanced Settings</span>
+                  <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showAdvanced && "rotate-180")} />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-2">
+                  <VideoParamsSection
+                    resolution={resolution} setResolution={setResolution}
+                    shotType={shotType} setShotType={setShotType}
+                    duration={duration} setDuration={setDuration}
+                    randomSeed={vidRandomSeed} setRandomSeed={setVidRandomSeed}
+                    seed={vidSeed} setSeed={setVidSeed}
+                    promptExpansion={vidPromptExpansion} setPromptExpansion={setVidPromptExpansion}
+                    audioEnabled={audioEnabled} setAudioEnabled={setAudioEnabled}
+                    audioFileUrl={audioFileUrl} setAudioFileUrl={setAudioFileUrl}
+                    videoModel={videoModel}
+                  />
+                </CollapsibleContent>
+              </Collapsible>
             </>
           )}
 
@@ -472,6 +542,11 @@ const CreatePage = () => {
                 positionY={overlayPosY} setPositionY={setOverlayPosY}
               />
             </>
+          )}
+
+          {/* Generation Progress */}
+          {generationStatus !== "idle" && (
+            <GenerationProgress status={generationStatus} />
           )}
 
           {/* Generate Button */}
@@ -515,6 +590,7 @@ const CreatePage = () => {
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Sparkles className="h-10 w-10 text-muted-foreground/30 mb-3" />
               <p className="text-xs text-muted-foreground">No results yet</p>
+              <p className="text-[10px] text-muted-foreground/60 mt-1">Add source images and a prompt, then hit Generate</p>
             </div>
           ) : (
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">

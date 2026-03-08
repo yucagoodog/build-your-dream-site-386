@@ -303,6 +303,7 @@ export type Database = {
           created_at: string
           error_message: string | null
           id: string
+          is_favorite: boolean
           is_final: boolean
           negative_prompt_used: string | null
           parameters: Json | null
@@ -320,6 +321,7 @@ export type Database = {
           created_at?: string
           error_message?: string | null
           id?: string
+          is_favorite?: boolean
           is_final?: boolean
           negative_prompt_used?: string | null
           parameters?: Json | null
@@ -337,6 +339,7 @@ export type Database = {
           created_at?: string
           error_message?: string | null
           id?: string
+          is_favorite?: boolean
           is_final?: boolean
           negative_prompt_used?: string | null
           parameters?: Json | null
@@ -367,6 +370,7 @@ export type Database = {
           enable_prompt_expansion: boolean | null
           error_message: string | null
           id: string
+          is_favorite: boolean
           is_final: boolean
           model: string
           negative_prompt: string | null
@@ -391,6 +395,7 @@ export type Database = {
           enable_prompt_expansion?: boolean | null
           error_message?: string | null
           id?: string
+          is_favorite?: boolean
           is_final?: boolean
           model?: string
           negative_prompt?: string | null
@@ -415,6 +420,7 @@ export type Database = {
           enable_prompt_expansion?: boolean | null
           error_message?: string | null
           id?: string
+          is_favorite?: boolean
           is_final?: boolean
           model?: string
           negative_prompt?: string | null

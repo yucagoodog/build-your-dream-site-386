@@ -162,10 +162,17 @@ const FlowsPage = () => {
         {isLoading ? (
           <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         ) : flows.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <Workflow className="h-12 w-12 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground mb-1">No flows yet</p>
-            <p className="text-xs text-muted-foreground/60">Create your first flow to chain generation steps</p>
+          <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
+            <div className="h-20 w-20 rounded-2xl bg-primary/5 flex items-center justify-center">
+              <Workflow className="h-10 w-10 text-primary/30" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-foreground">No flows yet</p>
+              <p className="text-xs text-muted-foreground max-w-xs mx-auto">Chain generation steps into reusable pipelines — image → upscale → overlay, all automated</p>
+            </div>
+            <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
+              <Plus className="h-3.5 w-3.5" /> Create Your First Flow
+            </Button>
           </div>
         ) : (
           <div className="space-y-2">

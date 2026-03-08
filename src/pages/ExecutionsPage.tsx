@@ -157,10 +157,17 @@ const ExecutionsPage = () => {
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : executions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <Play className="h-12 w-12 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground mb-1">No runs yet</p>
-            <p className="text-xs text-muted-foreground/60">Run a flow from the Flow Builder to see results here</p>
+          <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
+            <div className="h-20 w-20 rounded-2xl bg-primary/5 flex items-center justify-center">
+              <Play className="h-10 w-10 text-primary/30" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-foreground">No runs yet</p>
+              <p className="text-xs text-muted-foreground max-w-xs mx-auto">Execute a flow from the Run tab to see your generation pipeline results here</p>
+            </div>
+            <Button size="sm" className="gap-1.5" onClick={() => navigate("/runner")}>
+              <Play className="h-3.5 w-3.5" /> Go to Runner
+            </Button>
           </div>
         ) : (
           <div className="space-y-2">
