@@ -106,10 +106,41 @@ Deno.serve(async (req) => {
     }
 
     const aiData = await aiResponse.json();
-    const base64Url = aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    console.log("AI response structure:", JSON.stringify(Object.keys(aiData)));
+    console.log("First choice keys:", JSON.stringify(aiData.choices?.[0] ? Object.keys(aiData.choices[0]) : "no choices"));
+    const msg = aiData.choices?.[0]?.message;
+    console.log("Message keys:", JSON.stringify(msg ? Object.keys(msg) : "no message"));
+    if (msg?.content) {
+      console.log("Content type:", typeof msg.content, Array.isArray(msg.content) ? "array len=" + msg.content.length : "");
+      if (Array.isArray(msg.content)) {
+        msg.content.forEach((part: any, i: number) => {
+          console.log(`Content part ${i}:`, JSON.stringify(Object.keys(part)));
+        });
+      }
+    }
+
+    // Try multiple response formats
+    let base64Url: string | undefined;
+    
+    // Format 1: message.images array
+    base64Url = msg?.images?.[0]?.image_url?.url;
+    
+    // Format 2: content array with image_url parts
+    if (!base64Url && Array.isArray(msg?.content)) {
+      const imgPart = msg.content.find((p: any) => p.type === "image_url" || p.image_url);
+      base64Url = imgPart?.image_url?.url;
+    }
+    
+    // Format 3: inline_data in content parts
+    if (!base64Url && Array.isArray(msg?.content)) {
+      const imgPart = msg.content.find((p: any) => p.type === "image" || p.inline_data);
+      if (imgPart?.inline_data?.data) {
+        base64Url = `data:${imgPart.inline_data.mime_type || "image/png"};base64,${imgPart.inline_data.data}`;
+      }
+    }
 
     if (!base64Url) {
-      console.error("No image in AI response");
+      console.error("No image in AI response. Full response:", JSON.stringify(aiData).slice(0, 2000));
       return new Response(JSON.stringify({ error: "No image returned from AI" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
