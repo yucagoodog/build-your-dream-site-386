@@ -1,13 +1,12 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { FolderOpen, Upload, Trash2, Loader2, ArrowLeft, CheckSquare, Square, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { LazyImage } from "@/components/ImageSkeleton";
 
 interface SeedImageManagerProps {
   onBack: () => void;
@@ -106,16 +105,16 @@ export function SeedImageManager({ onBack }: SeedImageManagerProps) {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <FolderOpen className="h-4 w-4 text-primary" />
-        <h2 className="font-semibold text-sm flex-1">Seed Image Drive</h2>
-        <span className="text-[10px] text-muted-foreground">{images.length} images</span>
+        <h2 className="font-semibold text-sm flex-1">My Images</h2>
+        <span className="text-[10px] text-muted-foreground tabular-nums">{images.length} images</span>
       </div>
 
       <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleUpload} />
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <Button size="sm" onClick={() => fileRef.current?.click()} disabled={uploading} className="gap-1.5">
           {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-          Upload Images
+          Upload
         </Button>
         {!selectMode ? (
           <Button size="sm" variant="outline" onClick={() => setSelectMode(true)} disabled={images.length === 0} className="gap-1.5">
@@ -139,11 +138,20 @@ export function SeedImageManager({ onBack }: SeedImageManagerProps) {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="aspect-square rounded-lg bg-muted animate-pulse" />
+          ))}
+        </div>
       ) : images.length === 0 ? (
-        <div className="text-center py-12 space-y-2">
-          <FolderOpen className="h-10 w-10 text-muted-foreground/30 mx-auto" />
-          <p className="text-xs text-muted-foreground">No saved images yet. Upload seed images to reuse across generations.</p>
+        <div className="text-center py-16 space-y-3">
+          <div className="h-16 w-16 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto">
+            <FolderOpen className="h-8 w-8 text-muted-foreground/20" />
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">No saved images yet</p>
+            <p className="text-xs text-muted-foreground/60 mt-0.5">Upload seed images to reuse across generations</p>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
@@ -151,26 +159,35 @@ export function SeedImageManager({ onBack }: SeedImageManagerProps) {
             <div
               key={img.path}
               className={cn(
-                "relative group rounded-lg overflow-hidden bg-muted aspect-square",
-                selectMode && "cursor-pointer",
-                selected.has(img.path) && "ring-2 ring-primary"
+                "relative group rounded-lg overflow-hidden bg-muted aspect-square transition-all",
+                selectMode && "cursor-pointer active:scale-[0.97]",
+                selected.has(img.path) && "ring-2 ring-primary ring-offset-1 ring-offset-background"
               )}
               onClick={() => selectMode && toggleSelect(img.path)}
             >
-              <img src={img.url} alt={img.name} className="w-full h-full object-cover" loading="lazy" />
+              <LazyImage
+                src={img.url}
+                alt={img.name}
+                className="w-full h-full object-cover"
+              />
               {selectMode && (
-                <div className="absolute top-1.5 left-1.5">
+                <div className={cn(
+                  "absolute top-1.5 left-1.5 h-6 w-6 rounded-md flex items-center justify-center transition-colors",
+                  selected.has(img.path)
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-background/60 backdrop-blur text-muted-foreground"
+                )}>
                   {selected.has(img.path) ? (
-                    <CheckSquare className="h-5 w-5 text-primary drop-shadow-lg" />
+                    <CheckSquare className="h-4 w-4" />
                   ) : (
-                    <Square className="h-5 w-5 text-muted-foreground/70 drop-shadow-lg" />
+                    <Square className="h-4 w-4" />
                   )}
                 </div>
               )}
               {!selectMode && (
                 <button
                   onClick={(e) => { e.stopPropagation(); handleDeleteSingle(img.path); }}
-                  className="absolute top-1 right-1 h-6 w-6 rounded-full bg-background/80 backdrop-blur flex items-center justify-center text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute top-1 right-1 h-7 w-7 rounded-full bg-background/80 backdrop-blur flex items-center justify-center text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 lg:opacity-100 transition-opacity tap-target"
                 >
                   {deleting.has(img.path) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
                 </button>
