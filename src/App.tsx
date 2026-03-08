@@ -14,6 +14,7 @@ import FlowBuilderPage from "./pages/FlowBuilderPage";
 import FlowExecutionPage from "./pages/FlowExecutionPage";
 import FlowRunnerPage from "./pages/FlowRunnerPage";
 import ExecutionsPage from "./pages/ExecutionsPage";
+import PetPage from "./pages/PetPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -49,6 +50,7 @@ const AppRoutes = () => (
     <Route path="/flows/:flowId/run/:execId" element={<ProtectedRoute><FlowExecutionPage /></ProtectedRoute>} />
     <Route path="/runner" element={<ProtectedRoute><FlowRunnerPage /></ProtectedRoute>} />
     <Route path="/executions" element={<ProtectedRoute><ExecutionsPage /></ProtectedRoute>} />
+    <Route path="/pet" element={<ProtectedRoute><PetPage /></ProtectedRoute>} />
     <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
     <Route path="*" element={<NotFound />} />
   </Routes>

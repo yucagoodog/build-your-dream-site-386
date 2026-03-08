@@ -1,1 +1,4 @@
 project_id = "bltkuqduxieswspgtexh"
+
+[functions.tamagotchi-action]
+verify_jwt = false

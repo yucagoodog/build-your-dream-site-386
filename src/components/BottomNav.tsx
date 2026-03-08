@@ -1,4 +1,4 @@
-import { Sparkles, Library, Settings, Workflow, Play, Activity } from "lucide-react";
+import { Sparkles, Library, Settings, Workflow, Play, Activity, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -8,6 +8,7 @@ const tabs = [
   { path: "/flows", label: "Build", icon: Workflow },
   { path: "/runner", label: "Run", icon: Play },
   { path: "/executions", label: "Running", icon: Activity },
+  { path: "/pet", label: "Pet", icon: Heart },
   { path: "/settings", label: "Settings", icon: Settings },
 ];
 
