@@ -668,6 +668,148 @@ export type Database = {
           },
         ]
       }
+      tamagotchi_events: {
+        Row: {
+          action_name: string
+          created_at: string
+          event_type: string
+          id: string
+          pet_id: string
+          prompt_used: string | null
+          result_image_url: string | null
+          result_video_url: string | null
+          stat_changes: Json | null
+          user_id: string
+          xp_earned: number | null
+        }
+        Insert: {
+          action_name?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          pet_id: string
+          prompt_used?: string | null
+          result_image_url?: string | null
+          result_video_url?: string | null
+          stat_changes?: Json | null
+          user_id: string
+          xp_earned?: number | null
+        }
+        Update: {
+          action_name?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          pet_id?: string
+          prompt_used?: string | null
+          result_image_url?: string | null
+          result_video_url?: string | null
+          stat_changes?: Json | null
+          user_id?: string
+          xp_earned?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tamagotchi_events_pet_id_fkey"
+            columns: ["pet_id"]
+            isOneToOne: false
+            referencedRelation: "tamagotchi_pets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tamagotchi_inventory: {
+        Row: {
+          id: string
+          item_image_url: string | null
+          item_name: string
+          item_type: string
+          pet_id: string
+          unlocked_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          item_image_url?: string | null
+          item_name: string
+          item_type?: string
+          pet_id: string
+          unlocked_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          item_image_url?: string | null
+          item_name?: string
+          item_type?: string
+          pet_id?: string
+          unlocked_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tamagotchi_inventory_pet_id_fkey"
+            columns: ["pet_id"]
+            isOneToOne: false
+            referencedRelation: "tamagotchi_pets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tamagotchi_pets: {
+        Row: {
+          avatar_urls: string[]
+          created_at: string
+          description: string | null
+          energy: number
+          happiness: number
+          hunger: number
+          id: string
+          is_active: boolean
+          last_interaction_at: string
+          level: number
+          name: string
+          personality: string | null
+          updated_at: string
+          user_id: string
+          xp: number
+        }
+        Insert: {
+          avatar_urls?: string[]
+          created_at?: string
+          description?: string | null
+          energy?: number
+          happiness?: number
+          hunger?: number
+          id?: string
+          is_active?: boolean
+          last_interaction_at?: string
+          level?: number
+          name: string
+          personality?: string | null
+          updated_at?: string
+          user_id: string
+          xp?: number
+        }
+        Update: {
+          avatar_urls?: string[]
+          created_at?: string
+          description?: string | null
+          energy?: number
+          happiness?: number
+          hunger?: number
+          id?: string
+          is_active?: boolean
+          last_interaction_at?: string
+          level?: number
+          name?: string
+          personality?: string | null
+          updated_at?: string
+          user_id?: string
+          xp?: number
+        }
+        Relationships: []
+      }
       user_prompt_block_prefs: {
         Row: {
           block_id: string
