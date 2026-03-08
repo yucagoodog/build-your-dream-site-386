@@ -3,12 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, Check, X, RefreshCw, Sparkles } from "lucide-react";
+import { Loader2, Check, Sparkles, ChevronDown, ChevronUp, Pencil } from "lucide-react";
 import { AssetCard } from "./AssetCard";
-
-const EMOTIONS = ["happy", "sad", "surprised", "angry", "sleepy", "flirty", "laughing", "shy", "excited"];
-const OUTFITS = ["casual", "formal", "sleepwear", "workout", "swimwear", "evening"];
+import { EMOTIONS, OUTFITS, EMOTION_PROMPTS, OUTFIT_PROMPTS } from "@/lib/companion-prompts";
 
 interface Props {
   companion: any;
@@ -23,30 +20,59 @@ export function CharacterStudio({ companion, assets, generateAsset, updateAssetS
   const [customPrompt, setCustomPrompt] = useState("");
   const [selectedEmotion, setSelectedEmotion] = useState<string | null>(null);
   const [selectedOutfit, setSelectedOutfit] = useState<string | null>(null);
+  const [emotionPromptEdit, setEmotionPromptEdit] = useState("");
+  const [outfitPromptEdit, setOutfitPromptEdit] = useState("");
+  const [showEmotionPrompt, setShowEmotionPrompt] = useState(false);
+  const [showOutfitPrompt, setShowOutfitPrompt] = useState(false);
+  const [showAllAssets, setShowAllAssets] = useState(false);
 
-  const portraits = assets.filter(a => a.asset_type === "portrait");
   const emotionAssets = assets.filter(a => a.asset_type === "emotion");
   const outfitAssets = assets.filter(a => a.asset_type === "outfit");
 
   const getEmotionStatus = (emotion: string) => {
     const found = emotionAssets.filter(a => a.tags?.emotion === emotion);
-    const approved = found.find(a => a.status === "approved");
-    if (approved) return "approved";
+    if (found.find(a => a.status === "approved")) return "approved";
     if (found.length > 0) return "draft";
     return "none";
   };
 
   const getOutfitStatus = (outfit: string) => {
     const found = outfitAssets.filter(a => a.tags?.outfit === outfit);
-    const approved = found.find(a => a.status === "approved");
-    if (approved) return "approved";
+    if (found.find(a => a.status === "approved")) return "approved";
     if (found.length > 0) return "draft";
     return "none";
   };
 
+  const handleSelectEmotion = (emotion: string) => {
+    if (selectedEmotion === emotion) {
+      setSelectedEmotion(null);
+      setShowEmotionPrompt(false);
+    } else {
+      setSelectedEmotion(emotion);
+      // Auto-fill suggested prompt
+      const base = EMOTION_PROMPTS[emotion] || emotion;
+      const full = `${companion.name}, ${companion.description || "a person"}, ${base}, high quality portrait, consistent character, photorealistic`;
+      setEmotionPromptEdit(full);
+      setShowEmotionPrompt(false);
+    }
+  };
+
+  const handleSelectOutfit = (outfit: string) => {
+    if (selectedOutfit === outfit) {
+      setSelectedOutfit(null);
+      setShowOutfitPrompt(false);
+    } else {
+      setSelectedOutfit(outfit);
+      const base = OUTFIT_PROMPTS[outfit] || outfit;
+      const full = `${companion.name}, ${companion.description || "a person"}, ${base}, high quality portrait, consistent character, photorealistic`;
+      setOutfitPromptEdit(full);
+      setShowOutfitPrompt(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
-      {/* Base Portraits */}
+      {/* Reference Photos */}
       <div>
         <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Reference Photos</Label>
         <div className="grid grid-cols-4 gap-2 mt-2">
@@ -73,7 +99,7 @@ export function CharacterStudio({ companion, assets, generateAsset, updateAssetS
               return (
                 <button
                   key={emotion}
-                  onClick={() => setSelectedEmotion(selectedEmotion === emotion ? null : emotion)}
+                  onClick={() => handleSelectEmotion(emotion)}
                   className={`text-xs px-2.5 py-1.5 rounded-md border transition-all capitalize ${
                     selectedEmotion === emotion
                       ? "border-primary bg-primary/10 text-primary"
@@ -92,16 +118,32 @@ export function CharacterStudio({ companion, assets, generateAsset, updateAssetS
           </div>
           {selectedEmotion && (
             <div className="space-y-2">
+              {/* Prompt preview/edit toggle */}
+              <button
+                onClick={() => setShowEmotionPrompt(!showEmotionPrompt)}
+                className="w-full flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Pencil className="h-3 w-3" />
+                <span className="flex-1 text-left truncate">{emotionPromptEdit.slice(0, 60)}...</span>
+                {showEmotionPrompt ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+              </button>
+              {showEmotionPrompt && (
+                <Textarea
+                  value={emotionPromptEdit}
+                  onChange={e => setEmotionPromptEdit(e.target.value)}
+                  className="min-h-[60px] text-xs font-mono"
+                  placeholder="Edit the generation prompt..."
+                />
+              )}
               <Button
                 size="sm"
                 className="w-full gap-1 text-xs"
                 disabled={generating}
-                onClick={() => generateAsset("emotion", { emotion: selectedEmotion })}
+                onClick={() => generateAsset("emotion", { emotion: selectedEmotion }, emotionPromptEdit)}
               >
                 {generating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
                 Generate {selectedEmotion}
               </Button>
-              {/* Show existing assets for this emotion */}
               <div className="grid grid-cols-3 gap-2">
                 {emotionAssets
                   .filter(a => a.tags?.emotion === selectedEmotion)
@@ -129,7 +171,7 @@ export function CharacterStudio({ companion, assets, generateAsset, updateAssetS
               return (
                 <button
                   key={outfit}
-                  onClick={() => setSelectedOutfit(selectedOutfit === outfit ? null : outfit)}
+                  onClick={() => handleSelectOutfit(outfit)}
                   className={`text-xs px-2.5 py-1.5 rounded-md border transition-all capitalize ${
                     selectedOutfit === outfit
                       ? "border-primary bg-primary/10 text-primary"
@@ -148,11 +190,27 @@ export function CharacterStudio({ companion, assets, generateAsset, updateAssetS
           </div>
           {selectedOutfit && (
             <div className="space-y-2">
+              <button
+                onClick={() => setShowOutfitPrompt(!showOutfitPrompt)}
+                className="w-full flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Pencil className="h-3 w-3" />
+                <span className="flex-1 text-left truncate">{outfitPromptEdit.slice(0, 60)}...</span>
+                {showOutfitPrompt ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+              </button>
+              {showOutfitPrompt && (
+                <Textarea
+                  value={outfitPromptEdit}
+                  onChange={e => setOutfitPromptEdit(e.target.value)}
+                  className="min-h-[60px] text-xs font-mono"
+                  placeholder="Edit the generation prompt..."
+                />
+              )}
               <Button
                 size="sm"
                 className="w-full gap-1 text-xs"
                 disabled={generating}
-                onClick={() => generateAsset("outfit", { outfit: selectedOutfit })}
+                onClick={() => generateAsset("outfit", { outfit: selectedOutfit }, outfitPromptEdit)}
               >
                 {generating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
                 Generate {selectedOutfit}
@@ -194,20 +252,28 @@ export function CharacterStudio({ companion, assets, generateAsset, updateAssetS
         </CardContent>
       </Card>
 
-      {/* All assets grid */}
+      {/* All assets */}
       {assets.length > 0 && (
         <div>
-          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">All Assets ({assets.length})</Label>
-          <div className="grid grid-cols-3 gap-2 mt-2">
-            {assets.map(a => (
-              <AssetCard
-                key={a.id}
-                asset={a}
-                onApprove={() => updateAssetStatus(a.id, "approved")}
-                onReject={() => updateAssetStatus(a.id, "rejected")}
-              />
-            ))}
-          </div>
+          <button
+            onClick={() => setShowAllAssets(!showAllAssets)}
+            className="flex items-center gap-1 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+          >
+            All Assets ({assets.length})
+            {showAllAssets ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          </button>
+          {showAllAssets && (
+            <div className="grid grid-cols-3 gap-2 mt-2">
+              {assets.map(a => (
+                <AssetCard
+                  key={a.id}
+                  asset={a}
+                  onApprove={() => updateAssetStatus(a.id, "approved")}
+                  onReject={() => updateAssetStatus(a.id, "rejected")}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

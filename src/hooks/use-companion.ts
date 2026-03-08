@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
+import { DEFAULT_SCENARIOS } from "@/lib/companion-prompts";
 
 export function getCurrentTimeOfDay() {
   const h = new Date().getHours();
@@ -114,18 +115,31 @@ export function useCompanion() {
     if (error) { toast({ title: "Failed", description: error.message, variant: "destructive" }); return null; }
 
     const d = data as any;
+
+    // Create default rooms
     const defaultRooms = [
-      { room_name: "Living Room", icon: "🛋️", room_type: "living_room", base_prompt: "cozy modern living room with warm lighting, soft sofa, decorative plants", sort_order: 0 },
-      { room_name: "Kitchen", icon: "🍳", room_type: "kitchen", base_prompt: "modern kitchen with marble counters, warm ambient lighting", sort_order: 1 },
-      { room_name: "Bedroom", icon: "🛏️", room_type: "bedroom", base_prompt: "cozy bedroom with soft lighting, comfortable bed, warm atmosphere", sort_order: 2 },
-      { room_name: "Bathroom", icon: "🛁", room_type: "bathroom", base_prompt: "elegant modern bathroom with soft lighting", sort_order: 3 },
-      { room_name: "Balcony", icon: "🌅", room_type: "balcony", base_prompt: "spacious balcony with city skyline view, string lights", sort_order: 4 },
+      { room_name: "Living Room", icon: "🛋️", room_type: "living_room", base_prompt: "cozy modern living room with warm lighting, soft plush sofa, decorative plants, bookshelf, large windows with sheer curtains, wooden floor, ambient mood", sort_order: 0 },
+      { room_name: "Kitchen", icon: "🍳", room_type: "kitchen", base_prompt: "modern kitchen with marble counters, warm ambient lighting, copper pots hanging, fresh herbs on windowsill, breakfast bar with stools", sort_order: 1 },
+      { room_name: "Bedroom", icon: "🛏️", room_type: "bedroom", base_prompt: "cozy bedroom with soft lighting, comfortable king-size bed with fluffy pillows, warm blankets, bedside lamps, soft carpet, intimate atmosphere", sort_order: 2 },
+      { room_name: "Bathroom", icon: "🛁", room_type: "bathroom", base_prompt: "elegant modern bathroom with soft lighting, freestanding bathtub, candles, marble tiles, large mirror, plants", sort_order: 3 },
+      { room_name: "Balcony", icon: "🌅", room_type: "balcony", base_prompt: "spacious balcony with city skyline view, string lights, comfortable lounge chair, potted plants, sunset colors", sort_order: 4 },
     ];
     await supabase.from("companion_rooms" as any).insert(
       defaultRooms.map(r => ({ ...r, companion_id: d.id, user_id: user.id })) as any
     );
+
+    // Create default scenarios
+    await supabase.from("companion_scenarios" as any).insert(
+      DEFAULT_SCENARIOS.map(s => ({
+        ...s,
+        companion_id: d.id,
+        user_id: user.id,
+      })) as any
+    );
+
     qc.invalidateQueries({ queryKey: ["companion"] });
     qc.invalidateQueries({ queryKey: ["companion_rooms"] });
+    qc.invalidateQueries({ queryKey: ["companion_scenarios"] });
     return d;
   }, [user, qc]);
 
@@ -293,31 +307,53 @@ export function useCompanion() {
     qc.invalidateQueries({ queryKey: ["companion"] });
   }, [companion, qc]);
 
+  // ─── Asset resolvers with draft fallback ───
   const resolveAsset = useCallback((emotion?: string, outfit?: string): string | null => {
-    const approved = assets.filter((a: any) => a.status === "approved");
     const targetEmotion = emotion || companion?.current_emotion || "neutral";
     const targetOutfit = outfit || companion?.current_outfit || "casual";
 
-    let match = approved.find((a: any) =>
-      a.tags?.emotion === targetEmotion && a.tags?.outfit === targetOutfit
-    );
+    // Try approved first
+    const approved = assets.filter((a: any) => a.status === "approved" && a.image_url);
+    let match = approved.find((a: any) => a.tags?.emotion === targetEmotion && a.tags?.outfit === targetOutfit);
     if (match) return match.image_url;
     match = approved.find((a: any) => a.tags?.emotion === targetEmotion);
     if (match) return match.image_url;
     match = approved.find((a: any) => a.asset_type === "portrait");
     if (match) return match.image_url;
-    return companion?.avatar_urls?.[0] || null;
+
+    // Fallback to any draft with an image
+    const drafts = assets.filter((a: any) => a.status === "draft" && a.image_url);
+    match = drafts.find((a: any) => a.tags?.emotion === targetEmotion);
+    if (match) return match.image_url;
+    if (drafts.length > 0) return drafts[0].image_url;
+
+    return null; // Will fall through to avatar in PlayMode
   }, [assets, companion]);
 
   const resolveBackground = useCallback((roomType?: string, timeOfDay?: string): string | null => {
     const targetRoom = roomType || companion?.current_room || "living_room";
     const room = rooms.find((r: any) => r.room_type === targetRoom);
     if (!room) return null;
-    const variants = roomVariants.filter((v: any) => v.room_id === room.id && v.status === "approved");
     const time = timeOfDay || getCurrentTimeOfDay();
-    let match = variants.find((v: any) => v.time_of_day === time);
+
+    // Try approved first
+    const approved = roomVariants.filter((v: any) => v.room_id === room.id && v.status === "approved" && v.image_url);
+    let match = approved.find((v: any) => v.time_of_day === time);
     if (match) return match.image_url;
-    if (variants.length > 0) return variants[0].image_url;
+    if (approved.length > 0) return approved[0].image_url;
+
+    // Fallback to any draft with an image
+    const drafts = roomVariants.filter((v: any) => v.room_id === room.id && v.status === "draft" && v.image_url);
+    match = drafts.find((v: any) => v.time_of_day === time);
+    if (match) return match.image_url;
+    if (drafts.length > 0) return drafts[0].image_url;
+
+    // Try any room's approved/draft variant as ultimate fallback
+    const anyApproved = roomVariants.find((v: any) => v.status === "approved" && v.image_url);
+    if (anyApproved) return anyApproved.image_url;
+    const anyDraft = roomVariants.find((v: any) => v.image_url);
+    if (anyDraft) return anyDraft.image_url;
+
     return null;
   }, [rooms, roomVariants, companion]);
 
