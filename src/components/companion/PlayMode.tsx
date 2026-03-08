@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Heart, Send, Loader2, MessageCircle, ChevronUp, ChevronDown, AlertCircle } from "lucide-react";
+import { Heart, Send, Loader2, MessageCircle, ChevronUp, ChevronDown } from "lucide-react";
 import { getCurrentTimeOfDay } from "@/hooks/use-companion";
 
 const QUICK_ACTIONS = [
@@ -15,6 +15,47 @@ const QUICK_ACTIONS = [
   { id: "dance", label: "Dance", icon: "💃", color: "bg-yellow-500/20 text-yellow-400" },
   { id: "goodnight", label: "Night", icon: "🌙", color: "bg-slate-500/20 text-slate-400" },
 ];
+
+// Themed gradient backgrounds per room + time of day when no generated bg exists
+const ROOM_GRADIENTS: Record<string, Record<string, string>> = {
+  living_room: {
+    morning: "from-amber-900/80 via-orange-950/60 to-stone-950",
+    afternoon: "from-amber-800/70 via-yellow-950/50 to-stone-950",
+    evening: "from-orange-950/80 via-red-950/60 to-stone-950",
+    night: "from-indigo-950 via-slate-950 to-stone-950",
+  },
+  kitchen: {
+    morning: "from-yellow-900/70 via-amber-950/60 to-stone-950",
+    afternoon: "from-orange-900/60 via-amber-950/50 to-stone-950",
+    evening: "from-red-950/70 via-orange-950/60 to-stone-950",
+    night: "from-slate-900 via-gray-950 to-stone-950",
+  },
+  bedroom: {
+    morning: "from-rose-900/50 via-pink-950/40 to-slate-950",
+    afternoon: "from-rose-900/40 via-purple-950/30 to-slate-950",
+    evening: "from-purple-950/70 via-indigo-950/60 to-slate-950",
+    night: "from-indigo-950 via-purple-950 to-slate-950",
+  },
+  bathroom: {
+    morning: "from-cyan-900/50 via-teal-950/40 to-slate-950",
+    afternoon: "from-sky-900/40 via-cyan-950/30 to-slate-950",
+    evening: "from-teal-950/60 via-cyan-950/50 to-slate-950",
+    night: "from-slate-950 via-cyan-950/30 to-slate-950",
+  },
+  balcony: {
+    morning: "from-orange-800/70 via-rose-900/50 to-sky-950",
+    afternoon: "from-sky-800/60 via-blue-900/40 to-indigo-950",
+    evening: "from-orange-900/80 via-rose-950/60 to-purple-950",
+    night: "from-indigo-950 via-blue-950 to-slate-950",
+  },
+};
+
+const DEFAULT_GRADIENT: Record<string, string> = {
+  morning: "from-amber-900/60 via-orange-950/40 to-slate-950",
+  afternoon: "from-sky-900/50 via-blue-950/40 to-slate-950",
+  evening: "from-orange-950/70 via-rose-950/50 to-purple-950",
+  night: "from-indigo-950 via-slate-950 to-slate-950",
+};
 
 interface Props {
   companion: any;
@@ -39,6 +80,14 @@ export function PlayMode({ companion, rooms, assets, roomVariants, interactions,
   const bgUrl = resolveBackground();
   const charUrl = resolveAsset();
   const timeOfDay = getCurrentTimeOfDay();
+  const currentRoom = companion?.current_room || "living_room";
+
+  // The character image: generated asset → first avatar_url → null
+  const displayChar = charUrl || companion?.avatar_urls?.[0] || null;
+
+  // Background: generated room → themed gradient
+  const roomGradients = ROOM_GRADIENTS[currentRoom] || DEFAULT_GRADIENT;
+  const fallbackGradient = roomGradients[timeOfDay] || roomGradients.afternoon || DEFAULT_GRADIENT.afternoon;
 
   const recentChats = [...interactions].reverse().slice(-20);
 
@@ -62,47 +111,42 @@ export function PlayMode({ companion, rooms, assets, roomVariants, interactions,
   const moodEmoji = moodLevel >= 80 ? "😍" : moodLevel >= 60 ? "😊" : moodLevel >= 40 ? "😐" : moodLevel >= 20 ? "😢" : "😫";
   const xpInLevel = (companion?.relationship_xp || 0) % 100;
 
-  // Get the avatar as ultimate fallback
-  const displayChar = charUrl || companion?.avatar_urls?.[0];
-
-  // Check if we have enough content
-  const hasAnyAsset = assets.some((a: any) => a.image_url);
-  const hasAnyRoom = roomVariants.some((v: any) => v.image_url);
-  const needsContent = !hasAnyAsset && !hasAnyRoom;
-
   return (
     <div className="flex flex-col h-full relative overflow-hidden">
-      {/* Needs content warning */}
-      {needsContent && (
-        <div className="absolute top-12 left-3 right-3 z-20 bg-yellow-500/90 backdrop-blur-sm rounded-xl px-3 py-2 flex items-center gap-2 border border-yellow-400/30">
-          <AlertCircle className="h-4 w-4 text-yellow-900 shrink-0" />
-          <p className="text-[11px] text-yellow-900 font-medium">
-            Go to Studio → generate emotions & room backgrounds first for the full visual experience!
-          </p>
-        </div>
-      )}
-
       {/* Full-screen scene view */}
       <div className="relative flex-1 min-h-0">
-        {/* Background — full bleed */}
+        {/* Background — generated image OR themed gradient */}
         <div className="absolute inset-0">
           {bgUrl ? (
             <img src={bgUrl} alt="" className="w-full h-full object-cover transition-all duration-700" />
           ) : (
-            <div className="w-full h-full bg-gradient-to-b from-slate-800 via-slate-900 to-background" />
+            <div className={`w-full h-full bg-gradient-to-b ${fallbackGradient}`}>
+              {/* Ambient room decoration */}
+              <div className="absolute inset-0 opacity-10">
+                <div className="absolute top-1/4 left-1/4 w-32 h-32 rounded-full bg-white/5 blur-3xl" />
+                <div className="absolute bottom-1/3 right-1/4 w-48 h-48 rounded-full bg-primary/5 blur-3xl" />
+              </div>
+            </div>
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-black/20" />
+          {/* Overlay gradients for depth */}
+          <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-black/30" />
           <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-transparent to-black/10" />
         </div>
 
-        {/* Character portrait — centered, large */}
-        <div className="absolute inset-x-0 bottom-0 flex justify-center pointer-events-none">
-          {displayChar && (
+        {/* Character portrait — centered hero */}
+        <div className="absolute inset-0 flex items-end justify-center pointer-events-none">
+          {displayChar ? (
             <img
               src={displayChar}
               alt={companion?.name}
-              className="h-[70%] max-h-[500px] object-contain drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)] transition-all duration-500"
+              className="h-[75%] max-h-[550px] w-auto object-contain drop-shadow-[0_10px_40px_rgba(0,0,0,0.6)] transition-all duration-500 animate-fade-in"
+              style={{ filter: "drop-shadow(0 0 60px rgba(var(--primary-rgb, 139 92 246), 0.15))" }}
             />
+          ) : (
+            /* Placeholder silhouette when no image at all */
+            <div className="h-[60%] aspect-[3/4] rounded-t-full bg-gradient-to-t from-muted/30 to-muted/10 border border-white/5 flex items-center justify-center mb-0">
+              <span className="text-6xl opacity-30">👤</span>
+            </div>
           )}
         </div>
 
@@ -129,8 +173,8 @@ export function PlayMode({ companion, rooms, assets, roomVariants, interactions,
 
           <div className="bg-black/50 backdrop-blur-md rounded-xl px-3 py-2 border border-white/10">
             <p className="text-[10px] text-white/80 capitalize flex items-center gap-1">
-              {rooms.find((r: any) => r.room_type === companion?.current_room)?.icon || "🏠"}
-              {companion?.current_room?.replace(/_/g, " ") || "Living Room"}
+              {rooms.find((r: any) => r.room_type === currentRoom)?.icon || "🏠"}
+              {currentRoom.replace(/_/g, " ")}
             </p>
             <p className="text-[10px] text-white/60 capitalize">
               {timeOfDay === "morning" ? "🌅" : timeOfDay === "afternoon" ? "☀️" : timeOfDay === "evening" ? "🌇" : "🌙"} {timeOfDay}
@@ -138,7 +182,7 @@ export function PlayMode({ companion, rooms, assets, roomVariants, interactions,
           </div>
         </div>
 
-        {/* Room navigation — bottom of scene */}
+        {/* Room navigation — bottom of scene area */}
         <div className="absolute bottom-2 left-2 right-2 z-10">
           <div className="flex gap-1 overflow-x-auto pb-0.5 scrollbar-hide">
             {rooms.map((room: any) => (
@@ -146,7 +190,7 @@ export function PlayMode({ companion, rooms, assets, roomVariants, interactions,
                 key={room.id}
                 onClick={() => moveToRoom(room.room_type)}
                 className={`shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium transition-all border ${
-                  companion?.current_room === room.room_type
+                  currentRoom === room.room_type
                     ? "bg-primary/90 text-primary-foreground border-primary shadow-lg shadow-primary/30"
                     : "bg-black/40 backdrop-blur-md text-white/80 border-white/10 hover:bg-black/60"
                 }`}
@@ -158,11 +202,11 @@ export function PlayMode({ companion, rooms, assets, roomVariants, interactions,
           </div>
         </div>
 
-        {/* Last response bubble overlay */}
+        {/* Last response speech bubble */}
         {recentChats.length > 0 && recentChats[recentChats.length - 1]?.ai_response && !showChat && (
           <div className="absolute left-3 right-16 top-16 z-10">
-            <div className="bg-black/50 backdrop-blur-md rounded-2xl rounded-bl-sm px-3 py-2 max-w-[70%] border border-white/10">
-              <p className="text-xs text-white/90 line-clamp-2">
+            <div className="bg-black/50 backdrop-blur-md rounded-2xl rounded-bl-sm px-3 py-2 max-w-[70%] border border-white/10 animate-fade-in">
+              <p className="text-xs text-white/90 line-clamp-3">
                 {recentChats[recentChats.length - 1].ai_response}
               </p>
             </div>
@@ -222,7 +266,7 @@ export function PlayMode({ companion, rooms, assets, roomVariants, interactions,
             </div>
           )}
 
-          {/* Chat input — always visible */}
+          {/* Chat input */}
           <div className="flex gap-2 px-3 py-2">
             <button
               onClick={() => setShowChat(!showChat)}
