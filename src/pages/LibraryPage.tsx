@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Download, Search, Copy, Trash2, Clock, DollarSign,
-  AlertCircle, Sparkles, Loader2, Filter, ImageIcon, Clapperboard, Play, RotateCcw, ZoomIn, FolderOpen,
+  AlertCircle, Sparkles, Loader2, Filter, ImageIcon, Clapperboard, RotateCcw, ZoomIn, FolderOpen,
   Grid3X3, List, Star, Plus,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,6 +21,8 @@ import { saveToDrive } from "@/lib/save-to-drive";
 import { formatDistanceToNow } from "date-fns";
 import { LazyImage } from "@/components/ImageSkeleton";
 import { LibraryItemDetail } from "@/components/LibraryItemDetail";
+
+const PAGE_SIZE = 40;
 
 export type LibraryItem = {
   id: string;
@@ -52,6 +54,10 @@ const statusColors: Record<string, string> = {
   queued: "bg-muted text-muted-foreground border-border",
 };
 
+// Only select the columns we actually use — skip large blobs
+const IMAGE_COLS = "id,prompt,negative_prompt,model,status,cost,error_message,created_at,project_id,is_final,is_favorite,output_size,seed,enable_prompt_expansion,source_image_urls,output_image_url" as const;
+const VIDEO_COLS = "id,prompt_used,negative_prompt_used,status,cost,error_message,created_at,is_final,is_favorite,video_url,parameters,scene_id" as const;
+
 const LibraryPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -64,13 +70,20 @@ const LibraryPage = () => {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [selectedItem, setSelectedItem] = useState<LibraryItem | null>(null);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  // Reset visible count when filters change
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [search, statusFilter, typeFilter, sortBy, favoritesOnly]);
 
   const { data: imageEdits = [], isLoading: loadingImages } = useQuery({
     queryKey: ["library_image_edits", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("image_edits").select("*").eq("user_id", user!.id)
-        .order("created_at", { ascending: false });
+        .from("image_edits").select(IMAGE_COLS).eq("user_id", user!.id)
+        .order("created_at", { ascending: false })
+        .limit(500);
       if (error) throw error;
       return (data || []).map((e: any): LibraryItem => ({
         id: e.id, type: "image", prompt: e.prompt, negative_prompt: e.negative_prompt,
@@ -82,14 +95,16 @@ const LibraryPage = () => {
       }));
     },
     enabled: !!user,
+    staleTime: 30_000,
   });
 
   const { data: videoGens = [], isLoading: loadingVideos } = useQuery({
     queryKey: ["library_video_gens", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("generations").select("*").eq("user_id", user!.id)
-        .order("created_at", { ascending: false });
+        .from("generations").select(VIDEO_COLS).eq("user_id", user!.id)
+        .order("created_at", { ascending: false })
+        .limit(500);
       if (error) throw error;
       return (data || []).map((g: any): LibraryItem => ({
         id: g.id, type: "video", prompt: g.prompt_used, negative_prompt: g.negative_prompt_used,
@@ -101,6 +116,7 @@ const LibraryPage = () => {
       }));
     },
     enabled: !!user,
+    staleTime: 30_000,
   });
 
   const isLoading = loadingImages || loadingVideos;
@@ -113,6 +129,7 @@ const LibraryPage = () => {
       return data || [];
     },
     enabled: !!user,
+    staleTime: 60_000,
   });
 
   const projectMap = new Map(projects.map((p: any) => [p.id, p.name]));
@@ -134,26 +151,43 @@ const LibraryPage = () => {
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
 
-  const handleCopyParams = (item: LibraryItem) => {
+  // Only render visible slice
+  const visible = sorted.slice(0, visibleCount);
+  const hasMore = visibleCount < sorted.length;
+
+  // Infinite scroll sentinel
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!hasMore) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) setVisibleCount((c) => c + PAGE_SIZE);
+    }, { rootMargin: "200px" });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [hasMore, sorted.length]);
+
+  const handleCopyParams = useCallback((item: LibraryItem) => {
     const params = item.type === "image"
       ? { prompt: item.prompt || "", negative_prompt: item.negative_prompt || "", model: item.model, output_size: item.output_size || "1024*1024", seed: item.seed, enable_prompt_expansion: item.enable_prompt_expansion }
       : { prompt: item.prompt || "", negative_prompt: item.negative_prompt || "", model: item.model, ...(item.parameters || {}) };
     navigator.clipboard.writeText(JSON.stringify(params, null, 2));
     toast({ title: "Parameters copied" });
-  };
+  }, []);
 
-  const handleReEdit = (item: LibraryItem) => {
+  const handleReEdit = useCallback((item: LibraryItem) => {
     if (item.type === "video") {
       const params = item.parameters || {};
       navigate("/", { state: { reEdit: { mode: "video", prompt: item.prompt || "", negative_prompt: item.negative_prompt || "", seed_image_url: params.seed_image_url || "", resolution: params.resolution || "720p", duration: params.duration || 5, shot_type: params.shot_type || "single", seed: params.seed, prompt_expansion: params.prompt_expansion ?? true, audio: params.audio ?? false } } });
       return;
     }
     navigate("/", { state: { reEdit: { mode: "image", prompt: item.prompt || "", negative_prompt: item.negative_prompt || "", output_size: item.output_size || "1024*1024", model: item.model, seed: item.seed, enable_prompt_expansion: item.enable_prompt_expansion ?? true, source_image_urls: item.source_image_urls || [] } } });
-  };
+  }, [navigate]);
 
   const [upscaling, setUpscaling] = useState<Set<string>>(new Set());
 
-  const handleUpscale = async (item: LibraryItem) => {
+  const handleUpscale = useCallback(async (item: LibraryItem) => {
     const imageUrl = item.output_image_url;
     if (!imageUrl) { toast({ title: "No output image to upscale", variant: "destructive" }); return; }
     setUpscaling((prev) => new Set(prev).add(item.id));
@@ -178,22 +212,22 @@ const LibraryPage = () => {
       toast({ title: "Upscale error", description: err.message, variant: "destructive" });
       setUpscaling((prev) => { const n = new Set(prev); n.delete(item.id); return n; });
     }
-  };
+  }, [queryClient]);
 
-  const handleToggleFavorite = async (item: LibraryItem) => {
+  const handleToggleFavorite = useCallback(async (item: LibraryItem) => {
     const table = item.type === "image" ? "image_edits" : "generations";
     const newVal = !item.is_favorite;
     const { error } = await supabase.from(table).update({ is_favorite: newVal } as any).eq("id", item.id);
     if (error) { toast({ title: "Failed to update", variant: "destructive" }); return; }
     queryClient.invalidateQueries({ queryKey: item.type === "image" ? ["library_image_edits"] : ["library_video_gens"] });
-  };
+  }, [queryClient]);
 
-  const handleDelete = async (item: LibraryItem) => {
+  const handleDelete = useCallback(async (item: LibraryItem) => {
     const table = item.type === "image" ? "image_edits" : "generations";
     const { error } = await supabase.from(table).delete().eq("id", item.id);
     if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); }
     else { queryClient.invalidateQueries({ queryKey: item.type === "image" ? ["library_image_edits"] : ["library_video_gens"] }); toast({ title: "Deleted" }); }
-  };
+  }, [queryClient]);
 
   const totalCost = allItems.reduce((sum, e) => sum + (e.cost || 0), 0);
   const imageCount = allItems.filter((e) => e.type === "image").length;
@@ -284,11 +318,7 @@ const LibraryPage = () => {
         ) : sorted.length === 0 ? (
           <div className="text-center py-16 space-y-4">
             <div className="h-20 w-20 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto">
-              {favoritesOnly ? (
-                <Star className="h-10 w-10 text-muted-foreground/20" />
-              ) : (
-                <Sparkles className="h-10 w-10 text-muted-foreground/20" />
-              )}
+              {favoritesOnly ? <Star className="h-10 w-10 text-muted-foreground/20" /> : <Sparkles className="h-10 w-10 text-muted-foreground/20" />}
             </div>
             <div className="space-y-1">
               <p className="text-sm font-medium text-foreground">
@@ -310,7 +340,7 @@ const LibraryPage = () => {
           </div>
         ) : viewMode === "grid" ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-            {sorted.map((item) => (
+            {visible.map((item) => (
               <GridCard key={item.id} item={item} userId={user!.id}
                 onClick={() => setSelectedItem(item)}
                 onCopyParams={() => handleCopyParams(item)}
@@ -323,7 +353,7 @@ const LibraryPage = () => {
           </div>
         ) : (
           <div className="space-y-3">
-            {sorted.map((item) => (
+            {visible.map((item) => (
               <ListCard key={item.id} item={item} userId={user!.id}
                 onClick={() => setSelectedItem(item)}
                 projectName={item.project_id ? projectMap.get(item.project_id) || null : null}
@@ -335,6 +365,20 @@ const LibraryPage = () => {
                 onDelete={() => handleDelete(item)} />
             ))}
           </div>
+        )}
+
+        {/* Infinite scroll sentinel */}
+        {hasMore && (
+          <div ref={sentinelRef} className="flex justify-center py-4">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        )}
+
+        {/* Showing count */}
+        {sorted.length > 0 && (
+          <p className="text-center text-[10px] text-muted-foreground">
+            Showing {Math.min(visibleCount, sorted.length)} of {sorted.length}
+          </p>
         )}
 
         {/* Detail view */}
@@ -376,11 +420,12 @@ function GridCard({ item, userId, onClick, onCopyParams, onReEdit, onUpscale, is
 
   return (
     <div className="group relative rounded-lg overflow-hidden bg-muted aspect-square cursor-pointer" onClick={onClick}>
-      {/* Preview */}
+      {/* Preview — videos use preload="none" to avoid fetching all metadata at once */}
       {item.status === "completed" && outputUrl ? (
         isVideo ? (
-          <video src={outputUrl} className="w-full h-full object-cover" muted playsInline preload="metadata"
-            onMouseEnter={(e) => (e.target as HTMLVideoElement).play()}
+          <video src={outputUrl} className="w-full h-full object-cover" muted playsInline preload="none"
+            poster=""
+            onMouseEnter={(e) => { const v = e.target as HTMLVideoElement; v.load(); v.play(); }}
             onMouseLeave={(e) => { const v = e.target as HTMLVideoElement; v.pause(); v.currentTime = 0; }} />
         ) : (
           <LazyImage src={outputUrl} alt="Output" className="w-full h-full object-cover" />
@@ -438,22 +483,22 @@ function GridCard({ item, userId, onClick, onCopyParams, onReEdit, onUpscale, is
           <span className="ml-auto">{formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}</span>
         </div>
         <div className="flex gap-1 flex-wrap">
-          <button onClick={onReEdit} className="h-7 px-2 rounded-md bg-background/80 backdrop-blur text-[10px] font-medium text-foreground hover:bg-background flex items-center gap-1">
+          <button onClick={(e) => { e.stopPropagation(); onReEdit(); }} className="h-7 px-2 rounded-md bg-background/80 backdrop-blur text-[10px] font-medium text-foreground hover:bg-background flex items-center gap-1">
             <RotateCcw className="h-3 w-3" /> Re-edit
           </button>
           {item.status === "completed" && outputUrl && (
             <>
-              <button onClick={() => downloadFile(outputUrl, `${item.type}-${item.id.slice(0,8)}.${isVideo ? 'mp4' : 'png'}`)}
+              <button onClick={(e) => { e.stopPropagation(); downloadFile(outputUrl, `${item.type}-${item.id.slice(0,8)}.${isVideo ? 'mp4' : 'png'}`); }}
                 className="h-7 w-7 rounded-md bg-background/80 backdrop-blur flex items-center justify-center text-foreground hover:bg-background">
                 <Download className="h-3 w-3" />
               </button>
-              <button onClick={() => saveToDrive(outputUrl, userId)}
+              <button onClick={(e) => { e.stopPropagation(); saveToDrive(outputUrl, userId); }}
                 className="h-7 w-7 rounded-md bg-background/80 backdrop-blur flex items-center justify-center text-foreground hover:bg-background">
                 <FolderOpen className="h-3 w-3" />
               </button>
             </>
           )}
-          <button onClick={onDelete}
+          <button onClick={(e) => { e.stopPropagation(); onDelete(); }}
             className="h-7 w-7 rounded-md bg-background/80 backdrop-blur flex items-center justify-center text-destructive hover:bg-background ml-auto">
             <Trash2 className="h-3 w-3" />
           </button>
@@ -469,7 +514,6 @@ function ListCard({ item, userId, onClick, projectName, onCopyParams, onReEdit, 
   onCopyParams: () => void; onReEdit: () => void; onUpscale: () => void;
   isUpscaling: boolean; onToggleFavorite: () => void; onDelete: () => void;
 }) {
-  const inputUrls: string[] = item.source_image_urls || [];
   const params = item.parameters || {};
   const isVideo = item.type === "video";
   const outputUrl = isVideo ? item.video_url : item.output_image_url;
@@ -483,8 +527,8 @@ function ListCard({ item, userId, onClick, projectName, onCopyParams, onReEdit, 
             {!isVideo && outputUrl ? (
               <LazyImage src={outputUrl} alt="Output" className="w-full h-48 lg:h-full object-cover" />
             ) : isVideo && outputUrl ? (
-              <video src={outputUrl} className="w-full h-48 lg:h-full object-cover" muted playsInline preload="metadata"
-                onMouseEnter={(e) => (e.target as HTMLVideoElement).play()}
+              <video src={outputUrl} className="w-full h-48 lg:h-full object-cover" muted playsInline preload="none"
+                onMouseEnter={(e) => { const v = e.target as HTMLVideoElement; v.load(); v.play(); }}
                 onMouseLeave={(e) => { const v = e.target as HTMLVideoElement; v.pause(); v.currentTime = 0; }} />
             ) : (
               <div className="w-full h-48 lg:h-full flex items-center justify-center">
@@ -510,7 +554,7 @@ function ListCard({ item, userId, onClick, projectName, onCopyParams, onReEdit, 
                 {item.is_final && <Badge variant="outline" className="text-[10px] border-[hsl(var(--status-warning))]/30 text-[hsl(var(--status-warning))] bg-[hsl(var(--status-warning))]/10">Approved</Badge>}
               </div>
               <div className="flex items-center gap-1.5">
-                <button onClick={onToggleFavorite}
+                <button onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }}
                   className={cn("h-6 w-6 rounded-full flex items-center justify-center transition-colors",
                     item.is_favorite ? "text-[hsl(var(--status-warning))]" : "text-muted-foreground/40 hover:text-muted-foreground")}>
                   <Star className={cn("h-3.5 w-3.5", item.is_favorite && "fill-current")} />
@@ -538,25 +582,25 @@ function ListCard({ item, userId, onClick, projectName, onCopyParams, onReEdit, 
 
             {/* Actions */}
             <div className="flex flex-wrap gap-1.5 pt-1">
-              <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={onReEdit}><RotateCcw className="h-3 w-3" /> Re-edit</Button>
-              <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={onCopyParams}><Copy className="h-3 w-3" /> Copy</Button>
+              <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={(e) => { e.stopPropagation(); onReEdit(); }}><RotateCcw className="h-3 w-3" /> Re-edit</Button>
+              <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={(e) => { e.stopPropagation(); onCopyParams(); }}><Copy className="h-3 w-3" /> Copy</Button>
               {!isVideo && item.status === "completed" && item.output_image_url && item.model !== "google/nano-banana-2/edit" && (
-                <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={onUpscale} disabled={isUpscaling}>
+                <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={(e) => { e.stopPropagation(); onUpscale(); }} disabled={isUpscaling}>
                   {isUpscaling ? <Loader2 className="h-3 w-3 animate-spin" /> : <ZoomIn className="h-3 w-3" />}
                   {isUpscaling ? "Upscaling…" : "Upscale"}
                 </Button>
               )}
               {outputUrl && (
                 <>
-                  <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={() => saveToDrive(outputUrl, userId)}>
+                  <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={(e) => { e.stopPropagation(); saveToDrive(outputUrl, userId); }}>
                     <FolderOpen className="h-3 w-3" /> Save
                   </Button>
-                  <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={() => downloadFile(outputUrl, `${item.type}-${item.id.slice(0,8)}.${isVideo ? 'mp4' : 'png'}`)}>
+                  <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2" onClick={(e) => { e.stopPropagation(); downloadFile(outputUrl, `${item.type}-${item.id.slice(0,8)}.${isVideo ? 'mp4' : 'png'}`); }}>
                     <Download className="h-3 w-3" /> Download
                   </Button>
                 </>
               )}
-              <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2 text-destructive hover:text-destructive" onClick={onDelete}>
+              <Button size="sm" variant="ghost" className="h-7 text-[11px] px-2 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(); }}>
                 <Trash2 className="h-3 w-3" /> Delete
               </Button>
             </div>
