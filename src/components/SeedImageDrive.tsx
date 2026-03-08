@@ -1,15 +1,14 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { FolderOpen, Upload, Trash2, Loader2, X, Check } from "lucide-react";
+import { FolderOpen, Upload, Trash2, Loader2, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { LazyImage } from "@/components/ImageSkeleton";
 
 interface SeedImageDriveProps {
   onSelect: (url: string) => void;
@@ -26,7 +25,6 @@ export function SeedImageDrive({ onSelect, triggerLabel = "My Images" }: SeedIma
   const { data: images = [], isLoading } = useQuery({
     queryKey: ["seed_image_drive", user?.id],
     queryFn: async () => {
-      // List files in user's drive folder
       const { data, error } = await supabase.storage
         .from("seed-images")
         .list(`drive/${user!.id}`, { limit: 200, sortBy: { column: "created_at", order: "desc" } });
@@ -88,7 +86,7 @@ export function SeedImageDrive({ onSelect, triggerLabel = "My Images" }: SeedIma
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5">
+        <Button variant="outline" size="sm" className="gap-1.5 h-8">
           <FolderOpen className="h-3.5 w-3.5" />
           {triggerLabel}
         </Button>
@@ -96,8 +94,8 @@ export function SeedImageDrive({ onSelect, triggerLabel = "My Images" }: SeedIma
       <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-sm">
-            <FolderOpen className="h-4 w-4" />
-            Seed Image Drive
+            <FolderOpen className="h-4 w-4 text-primary" />
+            My Images
           </DialogTitle>
         </DialogHeader>
 
@@ -106,29 +104,41 @@ export function SeedImageDrive({ onSelect, triggerLabel = "My Images" }: SeedIma
             {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
             Upload
           </Button>
-          <span className="text-[10px] text-muted-foreground">{images.length} images</span>
+          <span className="text-[10px] text-muted-foreground ml-auto">{images.length} images</span>
         </div>
 
         <ScrollArea className="flex-1 -mx-6 px-6">
           {isLoading ? (
-            <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+            <div className="grid grid-cols-3 gap-2">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="aspect-square rounded-lg bg-muted animate-pulse" />
+              ))}
+            </div>
           ) : images.length === 0 ? (
-            <div className="text-center py-8 space-y-2">
-              <FolderOpen className="h-8 w-8 text-muted-foreground/30 mx-auto" />
-              <p className="text-xs text-muted-foreground">No saved images yet. Upload some to reuse across generations.</p>
+            <div className="text-center py-10 space-y-2">
+              <FolderOpen className="h-10 w-10 text-muted-foreground/20 mx-auto" />
+              <p className="text-xs text-muted-foreground">No saved images yet</p>
+              <p className="text-[10px] text-muted-foreground/60">Upload images to reuse across generations</p>
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-2">
               {images.map((img) => (
-                <div key={img.path} className="relative group rounded-lg overflow-hidden bg-muted aspect-square cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
-                  onClick={() => handleSelect(img.url)}>
-                  <img src={img.url} alt={img.name} className="w-full h-full object-cover" loading="lazy" />
-                  <div className="absolute inset-0 bg-background/0 group-hover:bg-background/30 transition-colors flex items-center justify-center">
+                <div
+                  key={img.path}
+                  className="relative group rounded-lg overflow-hidden bg-muted aspect-square cursor-pointer ring-1 ring-transparent hover:ring-primary/50 transition-all active:scale-[0.98]"
+                  onClick={() => handleSelect(img.url)}
+                >
+                  <LazyImage
+                    src={img.url}
+                    alt={img.name}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-background/0 group-hover:bg-background/20 transition-colors flex items-center justify-center">
                     <Check className="h-6 w-6 text-primary opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
                   </div>
                   <button
                     onClick={(e) => { e.stopPropagation(); handleDelete(img.path); }}
-                    className="absolute top-1 right-1 h-6 w-6 rounded-full bg-background/80 backdrop-blur flex items-center justify-center text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute top-1 right-1 h-7 w-7 rounded-full bg-background/80 backdrop-blur flex items-center justify-center text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 lg:opacity-100 transition-opacity tap-target"
                   >
                     {deleting === img.path ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
                   </button>
