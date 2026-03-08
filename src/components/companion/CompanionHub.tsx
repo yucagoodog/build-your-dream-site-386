@@ -99,15 +99,14 @@ export function CompanionHub() {
         </div>
         <div className="flex bg-muted rounded-lg p-0.5">
           <Button
-            variant={mode === "studio" ? "default" : "ghost"}
+            variant="default"
             size="sm"
             className="h-7 text-xs px-3"
-            onClick={() => setMode("studio")}
           >
             <Palette className="h-3.5 w-3.5 mr-1" /> Studio
           </Button>
           <Button
-            variant={mode === "play" ? "default" : "ghost"}
+            variant="ghost"
             size="sm"
             className="h-7 text-xs px-3"
             onClick={() => setMode("play")}
