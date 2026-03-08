@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Download, Search, Copy, Trash2, Clock, DollarSign,
   AlertCircle, Sparkles, Loader2, Filter, ImageIcon, Clapperboard, Play, RotateCcw, ZoomIn, FolderOpen,
-  Grid3X3, List,
+  Grid3X3, List, Star, Plus,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -33,6 +33,7 @@ type LibraryItem = {
   created_at: string;
   project_id: string | null;
   is_final: boolean;
+  is_favorite: boolean;
   output_size?: string | null;
   seed?: number | null;
   enable_prompt_expansion?: boolean | null;
@@ -60,6 +61,7 @@ const LibraryPage = () => {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("newest");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
 
   const { data: imageEdits = [], isLoading: loadingImages } = useQuery({
     queryKey: ["library_image_edits", user?.id],
@@ -72,6 +74,7 @@ const LibraryPage = () => {
         id: e.id, type: "image", prompt: e.prompt, negative_prompt: e.negative_prompt,
         model: e.model, status: e.status, cost: e.cost, error_message: e.error_message,
         created_at: e.created_at, project_id: e.project_id, is_final: e.is_final,
+        is_favorite: e.is_favorite ?? false,
         output_size: e.output_size, seed: e.seed, enable_prompt_expansion: e.enable_prompt_expansion,
         source_image_urls: e.source_image_urls, output_image_url: e.output_image_url,
       }));
@@ -90,7 +93,8 @@ const LibraryPage = () => {
         id: g.id, type: "video", prompt: g.prompt_used, negative_prompt: g.negative_prompt_used,
         model: (g.parameters as any)?.model || "wan26-i2v-flash", status: g.status,
         cost: g.cost, error_message: g.error_message, created_at: g.created_at,
-        project_id: null, is_final: g.is_final, video_url: g.video_url,
+        project_id: null, is_final: g.is_final, is_favorite: g.is_favorite ?? false,
+        video_url: g.video_url,
         parameters: g.parameters as any, scene_id: g.scene_id,
       }));
     },
@@ -114,6 +118,7 @@ const LibraryPage = () => {
   const filtered = allItems.filter((e) => {
     if (typeFilter !== "all" && e.type !== typeFilter) return false;
     if (statusFilter !== "all" && e.status !== statusFilter) return false;
+    if (favoritesOnly && !e.is_favorite) return false;
     if (search.trim()) {
       const q = search.toLowerCase();
       if (!e.prompt?.toLowerCase().includes(q) && !e.negative_prompt?.toLowerCase().includes(q) && !e.model?.toLowerCase().includes(q)) return false;
@@ -173,6 +178,14 @@ const LibraryPage = () => {
     }
   };
 
+  const handleToggleFavorite = async (item: LibraryItem) => {
+    const table = item.type === "image" ? "image_edits" : "generations";
+    const newVal = !item.is_favorite;
+    const { error } = await supabase.from(table).update({ is_favorite: newVal } as any).eq("id", item.id);
+    if (error) { toast({ title: "Failed to update", variant: "destructive" }); return; }
+    queryClient.invalidateQueries({ queryKey: item.type === "image" ? ["library_image_edits"] : ["library_video_gens"] });
+  };
+
   const handleDelete = async (item: LibraryItem) => {
     const table = item.type === "image" ? "image_edits" : "generations";
     const { error } = await supabase.from(table).delete().eq("id", item.id);
@@ -183,6 +196,7 @@ const LibraryPage = () => {
   const totalCost = allItems.reduce((sum, e) => sum + (e.cost || 0), 0);
   const imageCount = allItems.filter((e) => e.type === "image").length;
   const videoCount = allItems.filter((e) => e.type === "video").length;
+  const favCount = allItems.filter((e) => e.is_favorite).length;
 
   return (
     <AppShell title="Library">
@@ -192,10 +206,11 @@ const LibraryPage = () => {
           <span className="flex items-center gap-1"><Sparkles className="h-3.5 w-3.5" />{allItems.length} total</span>
           <span className="flex items-center gap-1"><ImageIcon className="h-3.5 w-3.5" />{imageCount}</span>
           <span className="flex items-center gap-1"><Clapperboard className="h-3.5 w-3.5" />{videoCount}</span>
+          {favCount > 0 && <span className="flex items-center gap-1"><Star className="h-3.5 w-3.5" />{favCount}</span>}
           <span className="flex items-center gap-1 ml-auto"><DollarSign className="h-3.5 w-3.5" />${totalCost.toFixed(3)}</span>
         </div>
 
-        {/* Type switcher + view toggle */}
+        {/* Type switcher + view toggle + favorites */}
         <div className="flex items-center gap-2">
           <div className="flex rounded-lg bg-muted p-1 gap-1 flex-1">
             {[
@@ -210,6 +225,11 @@ const LibraryPage = () => {
               </button>
             ))}
           </div>
+          <button onClick={() => setFavoritesOnly(!favoritesOnly)}
+            className={cn("h-8 w-8 rounded-lg flex items-center justify-center transition-colors",
+              favoritesOnly ? "bg-[hsl(var(--status-warning))]/20 text-[hsl(var(--status-warning))]" : "bg-muted text-muted-foreground hover:text-foreground")}>
+            <Star className={cn("h-3.5 w-3.5", favoritesOnly && "fill-current")} />
+          </button>
           <div className="flex rounded-lg bg-muted p-1 gap-0.5">
             <button onClick={() => setViewMode("grid")}
               className={cn("h-8 w-8 rounded-md flex items-center justify-center transition-colors",
@@ -260,13 +280,31 @@ const LibraryPage = () => {
             ))}
           </div>
         ) : sorted.length === 0 ? (
-          <div className="text-center py-16 space-y-3">
-            <div className="h-16 w-16 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto">
-              <Sparkles className="h-8 w-8 text-muted-foreground/20" />
+          <div className="text-center py-16 space-y-4">
+            <div className="h-20 w-20 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto">
+              {favoritesOnly ? (
+                <Star className="h-10 w-10 text-muted-foreground/20" />
+              ) : (
+                <Sparkles className="h-10 w-10 text-muted-foreground/20" />
+              )}
             </div>
-            <p className="text-sm text-muted-foreground">
-              {search || statusFilter !== "all" || typeFilter !== "all" ? "No results match your filters" : "No generations yet"}
-            </p>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-foreground">
+                {favoritesOnly ? "No favorites yet" :
+                 search || statusFilter !== "all" || typeFilter !== "all" ? "No results match your filters" :
+                 "Your library is empty"}
+              </p>
+              <p className="text-xs text-muted-foreground max-w-xs mx-auto">
+                {favoritesOnly ? "Star your best generations to find them quickly" :
+                 search || statusFilter !== "all" || typeFilter !== "all" ? "Try adjusting your search or filters" :
+                 "Generate your first image or video to see it here"}
+              </p>
+            </div>
+            {!favoritesOnly && !search && statusFilter === "all" && typeFilter === "all" && (
+              <Button size="sm" className="gap-1.5" onClick={() => navigate("/")}>
+                <Plus className="h-3.5 w-3.5" /> Create Something
+              </Button>
+            )}
           </div>
         ) : viewMode === "grid" ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
@@ -276,6 +314,7 @@ const LibraryPage = () => {
                 onReEdit={() => handleReEdit(item)}
                 onUpscale={() => handleUpscale(item)}
                 isUpscaling={upscaling.has(item.id)}
+                onToggleFavorite={() => handleToggleFavorite(item)}
                 onDelete={() => handleDelete(item)} />
             ))}
           </div>
@@ -288,6 +327,7 @@ const LibraryPage = () => {
                 onReEdit={() => handleReEdit(item)}
                 onUpscale={() => handleUpscale(item)}
                 isUpscaling={upscaling.has(item.id)}
+                onToggleFavorite={() => handleToggleFavorite(item)}
                 onDelete={() => handleDelete(item)} />
             ))}
           </div>
@@ -298,9 +338,9 @@ const LibraryPage = () => {
 };
 
 /* ─── Grid Card (visual, compact) ─── */
-function GridCard({ item, userId, onCopyParams, onReEdit, onUpscale, isUpscaling, onDelete }: {
+function GridCard({ item, userId, onCopyParams, onReEdit, onUpscale, isUpscaling, onToggleFavorite, onDelete }: {
   item: LibraryItem; userId: string; onCopyParams: () => void; onReEdit: () => void;
-  onUpscale: () => void; isUpscaling: boolean; onDelete: () => void;
+  onUpscale: () => void; isUpscaling: boolean; onToggleFavorite: () => void; onDelete: () => void;
 }) {
   const outputUrl = item.type === "image" ? item.output_image_url : item.video_url;
   const isVideo = item.type === "video";
@@ -338,9 +378,21 @@ function GridCard({ item, userId, onCopyParams, onReEdit, onUpscale, isUpscaling
         </Badge>
       </div>
 
+      {/* Favorite star */}
+      <button
+        onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }}
+        className={cn("absolute top-1.5 right-1.5 h-6 w-6 rounded-full flex items-center justify-center transition-all",
+          item.is_favorite
+            ? "bg-[hsl(var(--status-warning))]/20 text-[hsl(var(--status-warning))]"
+            : "bg-background/60 text-muted-foreground/40 opacity-0 group-hover:opacity-100"
+        )}
+      >
+        <Star className={cn("h-3 w-3", item.is_favorite && "fill-current")} />
+      </button>
+
       {/* Status indicator */}
       {item.status !== "completed" && (
-        <div className="absolute top-1.5 right-1.5">
+        <div className="absolute top-1.5 right-8">
           <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0 h-5 border", statusColors[item.status] || statusColors.queued)}>
             {item.status}
           </Badge>
@@ -383,10 +435,10 @@ function GridCard({ item, userId, onCopyParams, onReEdit, onUpscale, isUpscaling
 }
 
 /* ─── List Card (detailed) ─── */
-function ListCard({ item, userId, projectName, onCopyParams, onReEdit, onUpscale, isUpscaling, onDelete }: {
+function ListCard({ item, userId, projectName, onCopyParams, onReEdit, onUpscale, isUpscaling, onToggleFavorite, onDelete }: {
   item: LibraryItem; userId: string; projectName: string | null;
   onCopyParams: () => void; onReEdit: () => void; onUpscale: () => void;
-  isUpscaling: boolean; onDelete: () => void;
+  isUpscaling: boolean; onToggleFavorite: () => void; onDelete: () => void;
 }) {
   const inputUrls: string[] = item.source_image_urls || [];
   const params = item.parameters || {};
@@ -428,9 +480,16 @@ function ListCard({ item, userId, projectName, onCopyParams, onReEdit, onUpscale
                 <Badge variant="outline" className={cn("text-[10px] border", statusColors[item.status] || statusColors.queued)}>{item.status}</Badge>
                 {item.is_final && <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400 bg-amber-500/10">Approved</Badge>}
               </div>
-              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground shrink-0">
-                <span className="flex items-center gap-0.5"><DollarSign className="h-3 w-3" />{item.cost?.toFixed(3)}</span>
-                <span className="flex items-center gap-0.5"><Clock className="h-3 w-3" />{formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}</span>
+              <div className="flex items-center gap-1.5">
+                <button onClick={onToggleFavorite}
+                  className={cn("h-6 w-6 rounded-full flex items-center justify-center transition-colors",
+                    item.is_favorite ? "text-[hsl(var(--status-warning))]" : "text-muted-foreground/40 hover:text-muted-foreground")}>
+                  <Star className={cn("h-3.5 w-3.5", item.is_favorite && "fill-current")} />
+                </button>
+                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground shrink-0">
+                  <span className="flex items-center gap-0.5"><DollarSign className="h-3 w-3" />{item.cost?.toFixed(3)}</span>
+                  <span className="flex items-center gap-0.5"><Clock className="h-3 w-3" />{formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}</span>
+                </div>
               </div>
             </div>
 
