@@ -7,7 +7,7 @@ import { CharacterStudio } from "./CharacterStudio";
 import { WorldStudio } from "./WorldStudio";
 import { ScenarioStudio } from "./ScenarioStudio";
 import { PlayMode } from "./PlayMode";
-import { Palette, Home, Film, Play, Loader2, Heart, Wand2 } from "lucide-react";
+import { Palette, Home, Film, Play, Loader2, Heart, Wand2, Check } from "lucide-react";
 import { DEFAULT_SCENARIOS } from "@/lib/companion-prompts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
