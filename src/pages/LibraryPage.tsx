@@ -312,6 +312,7 @@ const LibraryPage = () => {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
             {sorted.map((item) => (
               <GridCard key={item.id} item={item} userId={user!.id}
+                onClick={() => setSelectedItem(item)}
                 onCopyParams={() => handleCopyParams(item)}
                 onReEdit={() => handleReEdit(item)}
                 onUpscale={() => handleUpscale(item)}
@@ -324,6 +325,7 @@ const LibraryPage = () => {
           <div className="space-y-3">
             {sorted.map((item) => (
               <ListCard key={item.id} item={item} userId={user!.id}
+                onClick={() => setSelectedItem(item)}
                 projectName={item.project_id ? projectMap.get(item.project_id) || null : null}
                 onCopyParams={() => handleCopyParams(item)}
                 onReEdit={() => handleReEdit(item)}
