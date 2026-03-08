@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Heart, Send, Loader2, MessageCircle, ChevronUp, ChevronDown } from "lucide-react";
+import { Heart, Send, Loader2, MessageCircle, ChevronUp, ChevronDown, AlertCircle } from "lucide-react";
 import { getCurrentTimeOfDay } from "@/hooks/use-companion";
 
 const QUICK_ACTIONS = [
@@ -19,6 +19,8 @@ const QUICK_ACTIONS = [
 interface Props {
   companion: any;
   rooms: any[];
+  assets: any[];
+  roomVariants: any[];
   interactions: any[];
   sendMessage: (msg: string) => Promise<any>;
   performAction: (action: string) => Promise<any>;
@@ -28,7 +30,7 @@ interface Props {
   chatLoading: boolean;
 }
 
-export function PlayMode({ companion, rooms, interactions, sendMessage, performAction, moveToRoom, resolveAsset, resolveBackground, chatLoading }: Props) {
+export function PlayMode({ companion, rooms, assets, roomVariants, interactions, sendMessage, performAction, moveToRoom, resolveAsset, resolveBackground, chatLoading }: Props) {
   const [message, setMessage] = useState("");
   const [showChat, setShowChat] = useState(false);
   const [showActions, setShowActions] = useState(true);
@@ -63,8 +65,23 @@ export function PlayMode({ companion, rooms, interactions, sendMessage, performA
   // Get the avatar as ultimate fallback
   const displayChar = charUrl || companion?.avatar_urls?.[0];
 
+  // Check if we have enough content
+  const hasAnyAsset = assets.some((a: any) => a.image_url);
+  const hasAnyRoom = roomVariants.some((v: any) => v.image_url);
+  const needsContent = !hasAnyAsset && !hasAnyRoom;
+
   return (
     <div className="flex flex-col h-full relative overflow-hidden">
+      {/* Needs content warning */}
+      {needsContent && (
+        <div className="absolute top-12 left-3 right-3 z-20 bg-yellow-500/90 backdrop-blur-sm rounded-xl px-3 py-2 flex items-center gap-2 border border-yellow-400/30">
+          <AlertCircle className="h-4 w-4 text-yellow-900 shrink-0" />
+          <p className="text-[11px] text-yellow-900 font-medium">
+            Go to Studio → generate emotions & room backgrounds first for the full visual experience!
+          </p>
+        </div>
+      )}
+
       {/* Full-screen scene view */}
       <div className="relative flex-1 min-h-0">
         {/* Background — full bleed */}
@@ -74,7 +91,6 @@ export function PlayMode({ companion, rooms, interactions, sendMessage, performA
           ) : (
             <div className="w-full h-full bg-gradient-to-b from-slate-800 via-slate-900 to-background" />
           )}
-          {/* Cinematic vignette */}
           <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-black/20" />
           <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-transparent to-black/10" />
         </div>
