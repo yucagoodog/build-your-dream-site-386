@@ -477,7 +477,7 @@ const CreatePage = () => {
           {/* Generate Button */}
           <Button onClick={handleGenerate} disabled={!canGenerate || generating} className="w-full h-12 text-sm" size="lg">
             {generating ? <Loader2 className="animate-spin" /> : <Play className="h-4 w-4" />}
-            {mode === "image" ? `Generate · $${imgCost.toFixed(3)}` : mode === "video" ? `Generate · $${vidCost.toFixed(2)}` : mode === "overlay" ? "Composite" : `Upscale · $0.01`}
+            {mode === "image" ? `Generate · $${imgCost.toFixed(3)}` : mode === "video" ? `Generate · $${vidCost.toFixed(2)}` : mode === "overlay" ? "Composite" : `Upscale · $${(upscaleResolution === "4k" ? 0.16 : upscaleResolution === "2k" ? 0.12 : 0.08).toFixed(2)}`}
           </Button>
         </div>
 
