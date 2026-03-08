@@ -196,7 +196,7 @@ const FlowsPage = () => {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1 shrink-0 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                       <button onClick={(e) => { e.stopPropagation(); handleDuplicate(flow.id, flow.name); }}
                         className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent">
                         <Copy className="h-3.5 w-3.5" />
