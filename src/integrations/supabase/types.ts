@@ -120,6 +120,310 @@ export type Database = {
           },
         ]
       }
+      companion_assets: {
+        Row: {
+          asset_type: string
+          atlas_task_id: string | null
+          companion_id: string
+          created_at: string | null
+          id: string
+          image_url: string | null
+          prompt_used: string | null
+          status: string | null
+          tags: Json | null
+          user_id: string
+        }
+        Insert: {
+          asset_type?: string
+          atlas_task_id?: string | null
+          companion_id: string
+          created_at?: string | null
+          id?: string
+          image_url?: string | null
+          prompt_used?: string | null
+          status?: string | null
+          tags?: Json | null
+          user_id: string
+        }
+        Update: {
+          asset_type?: string
+          atlas_task_id?: string | null
+          companion_id?: string
+          created_at?: string | null
+          id?: string
+          image_url?: string | null
+          prompt_used?: string | null
+          status?: string | null
+          tags?: Json | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "companion_assets_companion_id_fkey"
+            columns: ["companion_id"]
+            isOneToOne: false
+            referencedRelation: "companions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      companion_interactions: {
+        Row: {
+          ai_response: string | null
+          companion_id: string
+          content: string | null
+          created_at: string | null
+          id: string
+          interaction_type: string | null
+          metadata: Json | null
+          mood_change: number | null
+          scene_image_url: string | null
+          user_id: string
+          xp_earned: number | null
+        }
+        Insert: {
+          ai_response?: string | null
+          companion_id: string
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          interaction_type?: string | null
+          metadata?: Json | null
+          mood_change?: number | null
+          scene_image_url?: string | null
+          user_id: string
+          xp_earned?: number | null
+        }
+        Update: {
+          ai_response?: string | null
+          companion_id?: string
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          interaction_type?: string | null
+          metadata?: Json | null
+          mood_change?: number | null
+          scene_image_url?: string | null
+          user_id?: string
+          xp_earned?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "companion_interactions_companion_id_fkey"
+            columns: ["companion_id"]
+            isOneToOne: false
+            referencedRelation: "companions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      companion_room_variants: {
+        Row: {
+          atlas_task_id: string | null
+          created_at: string | null
+          id: string
+          image_url: string | null
+          prompt_used: string | null
+          room_id: string
+          status: string | null
+          time_of_day: string | null
+          user_id: string
+          weather: string | null
+        }
+        Insert: {
+          atlas_task_id?: string | null
+          created_at?: string | null
+          id?: string
+          image_url?: string | null
+          prompt_used?: string | null
+          room_id: string
+          status?: string | null
+          time_of_day?: string | null
+          user_id: string
+          weather?: string | null
+        }
+        Update: {
+          atlas_task_id?: string | null
+          created_at?: string | null
+          id?: string
+          image_url?: string | null
+          prompt_used?: string | null
+          room_id?: string
+          status?: string | null
+          time_of_day?: string | null
+          user_id?: string
+          weather?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "companion_room_variants_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "companion_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      companion_rooms: {
+        Row: {
+          base_prompt: string | null
+          companion_id: string
+          created_at: string | null
+          icon: string | null
+          id: string
+          room_name: string
+          room_type: string | null
+          sort_order: number | null
+          user_id: string
+        }
+        Insert: {
+          base_prompt?: string | null
+          companion_id: string
+          created_at?: string | null
+          icon?: string | null
+          id?: string
+          room_name: string
+          room_type?: string | null
+          sort_order?: number | null
+          user_id: string
+        }
+        Update: {
+          base_prompt?: string | null
+          companion_id?: string
+          created_at?: string | null
+          icon?: string | null
+          id?: string
+          room_name?: string
+          room_type?: string | null
+          sort_order?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "companion_rooms_companion_id_fkey"
+            columns: ["companion_id"]
+            isOneToOne: false
+            referencedRelation: "companions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      companion_scenarios: {
+        Row: {
+          companion_id: string
+          created_at: string | null
+          id: string
+          images: string[] | null
+          prompt_template: string | null
+          required_emotion: string | null
+          required_outfit: string | null
+          required_room: string | null
+          scenario_name: string
+          scenario_type: string | null
+          status: string | null
+          user_id: string
+          videos: string[] | null
+        }
+        Insert: {
+          companion_id: string
+          created_at?: string | null
+          id?: string
+          images?: string[] | null
+          prompt_template?: string | null
+          required_emotion?: string | null
+          required_outfit?: string | null
+          required_room?: string | null
+          scenario_name: string
+          scenario_type?: string | null
+          status?: string | null
+          user_id: string
+          videos?: string[] | null
+        }
+        Update: {
+          companion_id?: string
+          created_at?: string | null
+          id?: string
+          images?: string[] | null
+          prompt_template?: string | null
+          required_emotion?: string | null
+          required_outfit?: string | null
+          required_room?: string | null
+          scenario_name?: string
+          scenario_type?: string | null
+          status?: string | null
+          user_id?: string
+          videos?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "companion_scenarios_companion_id_fkey"
+            columns: ["companion_id"]
+            isOneToOne: false
+            referencedRelation: "companions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      companions: {
+        Row: {
+          avatar_urls: string[] | null
+          created_at: string | null
+          current_emotion: string | null
+          current_outfit: string | null
+          current_room: string | null
+          daily_schedule: Json | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          last_interaction_at: string | null
+          mood_level: number | null
+          name: string
+          personality: string | null
+          relationship_level: number | null
+          relationship_xp: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          avatar_urls?: string[] | null
+          created_at?: string | null
+          current_emotion?: string | null
+          current_outfit?: string | null
+          current_room?: string | null
+          daily_schedule?: Json | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_interaction_at?: string | null
+          mood_level?: number | null
+          name: string
+          personality?: string | null
+          relationship_level?: number | null
+          relationship_xp?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          avatar_urls?: string[] | null
+          created_at?: string | null
+          current_emotion?: string | null
+          current_outfit?: string | null
+          current_room?: string | null
+          daily_schedule?: Json | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_interaction_at?: string | null
+          mood_level?: number | null
+          name?: string
+          personality?: string | null
+          relationship_level?: number | null
+          relationship_xp?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       flow_executions: {
         Row: {
           completed_at: string | null
