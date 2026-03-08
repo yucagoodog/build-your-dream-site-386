@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Heart, Send, Loader2, MessageCircle, HandHeart, Gift, Music, Moon, Utensils, Footprints } from "lucide-react";
+import { Heart, Send, Loader2, MessageCircle, ChevronUp, ChevronDown } from "lucide-react";
 import { getCurrentTimeOfDay } from "@/hooks/use-companion";
 
 const QUICK_ACTIONS = [
@@ -31,6 +31,7 @@ interface Props {
 export function PlayMode({ companion, rooms, interactions, sendMessage, performAction, moveToRoom, resolveAsset, resolveBackground, chatLoading }: Props) {
   const [message, setMessage] = useState("");
   const [showChat, setShowChat] = useState(false);
+  const [showActions, setShowActions] = useState(true);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const bgUrl = resolveBackground();
@@ -57,85 +58,81 @@ export function PlayMode({ companion, rooms, interactions, sendMessage, performA
 
   const moodLevel = companion?.mood_level || 70;
   const moodEmoji = moodLevel >= 80 ? "😍" : moodLevel >= 60 ? "😊" : moodLevel >= 40 ? "😐" : moodLevel >= 20 ? "😢" : "😫";
+  const xpInLevel = (companion?.relationship_xp || 0) % 100;
+
+  // Get the avatar as ultimate fallback
+  const displayChar = charUrl || companion?.avatar_urls?.[0];
 
   return (
-    <div className="flex flex-col h-full relative">
-      {/* Scene view */}
-      <div className="relative flex-1 min-h-0 overflow-hidden">
-        {/* Background */}
+    <div className="flex flex-col h-full relative overflow-hidden">
+      {/* Full-screen scene view */}
+      <div className="relative flex-1 min-h-0">
+        {/* Background — full bleed */}
         <div className="absolute inset-0">
           {bgUrl ? (
-            <img src={bgUrl} alt="" className="w-full h-full object-cover" />
+            <img src={bgUrl} alt="" className="w-full h-full object-cover transition-all duration-700" />
           ) : (
-            <div className="w-full h-full bg-gradient-to-b from-muted to-background flex items-center justify-center">
-              <p className="text-xs text-muted-foreground">Generate room backgrounds in Studio → World tab</p>
-            </div>
+            <div className="w-full h-full bg-gradient-to-b from-slate-800 via-slate-900 to-background" />
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
+          {/* Cinematic vignette */}
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-black/20" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-transparent to-black/10" />
         </div>
 
-        {/* Character portrait */}
-        <div className="absolute inset-x-0 bottom-0 flex justify-center">
-          {charUrl ? (
+        {/* Character portrait — centered, large */}
+        <div className="absolute inset-x-0 bottom-0 flex justify-center pointer-events-none">
+          {displayChar && (
             <img
-              src={charUrl}
+              src={displayChar}
               alt={companion?.name}
-              className="h-[60%] max-h-[400px] object-contain drop-shadow-2xl"
+              className="h-[70%] max-h-[500px] object-contain drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)] transition-all duration-500"
             />
-          ) : (
-            companion?.avatar_urls?.[0] && (
-              <img
-                src={companion.avatar_urls[0]}
-                alt={companion?.name}
-                className="h-[50%] max-h-[350px] object-contain rounded-2xl drop-shadow-2xl"
-              />
-            )
           )}
         </div>
 
-        {/* Status overlay */}
-        <div className="absolute top-2 left-2 right-2 flex items-start justify-between">
-          <div className="bg-background/80 backdrop-blur-sm rounded-lg px-2.5 py-1.5 flex items-center gap-2">
-            <span className="text-lg">{moodEmoji}</span>
+        {/* Status HUD — top */}
+        <div className="absolute top-2 left-2 right-2 flex items-start justify-between z-10">
+          <div className="bg-black/50 backdrop-blur-md rounded-xl px-3 py-2 flex items-center gap-2.5 border border-white/10">
+            <span className="text-xl">{moodEmoji}</span>
             <div>
-              <p className="text-xs font-medium">{companion?.name}</p>
-              <div className="flex items-center gap-1.5">
+              <p className="text-xs font-semibold text-white">{companion?.name}</p>
+              <div className="flex items-center gap-2 mt-0.5">
                 <div className="flex items-center gap-0.5">
                   <Heart className="h-2.5 w-2.5 text-pink-400 fill-pink-400" />
-                  <span className="text-[10px] text-muted-foreground">Lvl {companion?.relationship_level || 1}</span>
+                  <span className="text-[10px] text-white/70">Lvl {companion?.relationship_level || 1}</span>
                 </div>
-                <div className="w-12 h-1.5 rounded-full bg-muted overflow-hidden">
+                <div className="w-16 h-1.5 rounded-full bg-white/10 overflow-hidden">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-pink-500 to-red-400 transition-all"
-                    style={{ width: `${moodLevel}%` }}
+                    className="h-full rounded-full bg-gradient-to-r from-pink-500 to-red-400 transition-all duration-500"
+                    style={{ width: `${xpInLevel}%` }}
                   />
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="bg-background/80 backdrop-blur-sm rounded-lg px-2.5 py-1.5">
-            <p className="text-[10px] text-muted-foreground capitalize">
-              {rooms.find((r: any) => r.room_type === companion?.current_room)?.icon || "🏠"}{" "}
+          <div className="bg-black/50 backdrop-blur-md rounded-xl px-3 py-2 border border-white/10">
+            <p className="text-[10px] text-white/80 capitalize flex items-center gap-1">
+              {rooms.find((r: any) => r.room_type === companion?.current_room)?.icon || "🏠"}
               {companion?.current_room?.replace(/_/g, " ") || "Living Room"}
             </p>
-            <p className="text-[10px] text-muted-foreground capitalize">
+            <p className="text-[10px] text-white/60 capitalize">
               {timeOfDay === "morning" ? "🌅" : timeOfDay === "afternoon" ? "☀️" : timeOfDay === "evening" ? "🌇" : "🌙"} {timeOfDay}
             </p>
           </div>
         </div>
 
-        {/* Room navigation */}
-        <div className="absolute bottom-2 left-2 right-2">
-          <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide">
+        {/* Room navigation — bottom of scene */}
+        <div className="absolute bottom-2 left-2 right-2 z-10">
+          <div className="flex gap-1 overflow-x-auto pb-0.5 scrollbar-hide">
             {rooms.map((room: any) => (
               <button
                 key={room.id}
                 onClick={() => moveToRoom(room.room_type)}
-                className={`shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs transition-all ${
+                className={`shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium transition-all border ${
                   companion?.current_room === room.room_type
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-background/70 backdrop-blur-sm text-foreground hover:bg-background/90"
+                    ? "bg-primary/90 text-primary-foreground border-primary shadow-lg shadow-primary/30"
+                    : "bg-black/40 backdrop-blur-md text-white/80 border-white/10 hover:bg-black/60"
                 }`}
               >
                 <span>{room.icon}</span>
@@ -144,86 +141,97 @@ export function PlayMode({ companion, rooms, interactions, sendMessage, performA
             ))}
           </div>
         </div>
+
+        {/* Last response bubble overlay */}
+        {recentChats.length > 0 && recentChats[recentChats.length - 1]?.ai_response && !showChat && (
+          <div className="absolute left-3 right-16 top-16 z-10">
+            <div className="bg-black/50 backdrop-blur-md rounded-2xl rounded-bl-sm px-3 py-2 max-w-[70%] border border-white/10">
+              <p className="text-xs text-white/90 line-clamp-2">
+                {recentChats[recentChats.length - 1].ai_response}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Quick actions */}
-      <div className="shrink-0 border-t border-border/30 bg-background/95 backdrop-blur">
-        <div className="flex gap-1 px-2 py-2 overflow-x-auto scrollbar-hide">
-          {QUICK_ACTIONS.map(action => (
-            <button
-              key={action.id}
-              onClick={() => handleAction(action.id)}
-              disabled={chatLoading}
-              className={`shrink-0 flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-lg transition-all ${action.color} hover:opacity-80 disabled:opacity-40`}
-            >
-              <span className="text-base">{action.icon}</span>
-              <span className="text-[9px] font-medium">{action.label}</span>
-            </button>
-          ))}
-        </div>
+      {/* Interactive controls — bottom panel */}
+      <div className="shrink-0 bg-background border-t border-border/30">
+        {/* Quick actions — collapsible */}
+        <button
+          onClick={() => setShowActions(!showActions)}
+          className="w-full flex items-center justify-center gap-1 py-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {showActions ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
+          Actions
+        </button>
+        {showActions && (
+          <div className="flex gap-1 px-2 pb-2 overflow-x-auto scrollbar-hide">
+            {QUICK_ACTIONS.map(action => (
+              <button
+                key={action.id}
+                onClick={() => handleAction(action.id)}
+                disabled={chatLoading}
+                className={`shrink-0 flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-xl transition-all ${action.color} hover:scale-105 active:scale-95 disabled:opacity-40`}
+              >
+                <span className="text-base">{action.icon}</span>
+                <span className="text-[9px] font-medium">{action.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
-        {/* Chat toggle */}
+        {/* Chat area */}
         <div className="border-t border-border/20">
-          {!showChat ? (
-            <button
-              onClick={() => setShowChat(true)}
-              className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <MessageCircle className="h-4 w-4" />
-              <span>Talk to {companion?.name}...</span>
-            </button>
-          ) : (
-            <div className="space-y-0">
-              {/* Chat messages */}
-              <div className="max-h-48 overflow-y-auto px-3 py-2 space-y-2">
-                {recentChats.map((chat: any, i: number) => (
-                  <div key={chat.id || i} className="space-y-1">
-                    {chat.content && (
-                      <div className="flex justify-end">
-                        <div className="bg-primary/20 text-foreground rounded-2xl rounded-br-sm px-3 py-1.5 max-w-[80%]">
-                          <p className="text-xs">{chat.content}</p>
-                        </div>
+          {showChat && (
+            <div className="max-h-48 overflow-y-auto px-3 py-2 space-y-2">
+              {recentChats.map((chat: any, i: number) => (
+                <div key={chat.id || i} className="space-y-1">
+                  {chat.content && (
+                    <div className="flex justify-end">
+                      <div className="bg-primary/20 text-foreground rounded-2xl rounded-br-sm px-3 py-1.5 max-w-[80%]">
+                        <p className="text-xs">{chat.content}</p>
                       </div>
-                    )}
-                    {chat.ai_response && (
-                      <div className="flex justify-start">
-                        <div className="bg-muted rounded-2xl rounded-bl-sm px-3 py-1.5 max-w-[80%]">
-                          <p className="text-xs">{chat.ai_response}</p>
-                        </div>
+                    </div>
+                  )}
+                  {chat.ai_response && (
+                    <div className="flex justify-start">
+                      <div className="bg-muted rounded-2xl rounded-bl-sm px-3 py-1.5 max-w-[80%]">
+                        <p className="text-xs">{chat.ai_response}</p>
                       </div>
-                    )}
-                  </div>
-                ))}
-                <div ref={chatEndRef} />
-              </div>
-
-              {/* Chat input */}
-              <div className="flex gap-2 px-3 py-2 border-t border-border/20">
-                <button
-                  onClick={() => setShowChat(false)}
-                  className="shrink-0 text-muted-foreground hover:text-foreground text-xs"
-                >
-                  ✕
-                </button>
-                <input
-                  value={message}
-                  onChange={e => setMessage(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && handleSend()}
-                  placeholder={`Say something to ${companion?.name}...`}
-                  className="flex-1 bg-input rounded-full px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary"
-                  disabled={chatLoading}
-                />
-                <Button
-                  size="sm"
-                  className="h-8 w-8 p-0 rounded-full shrink-0"
-                  onClick={handleSend}
-                  disabled={chatLoading || !message.trim()}
-                >
-                  {chatLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                </Button>
-              </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+              <div ref={chatEndRef} />
             </div>
           )}
+
+          {/* Chat input — always visible */}
+          <div className="flex gap-2 px-3 py-2">
+            <button
+              onClick={() => setShowChat(!showChat)}
+              className="shrink-0 h-8 w-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <MessageCircle className="h-4 w-4" />
+            </button>
+            <input
+              value={message}
+              onChange={e => setMessage(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleSend()}
+              onFocus={() => setShowChat(true)}
+              placeholder={`Talk to ${companion?.name}...`}
+              className="flex-1 bg-input rounded-full px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary"
+              disabled={chatLoading}
+            />
+            <Button
+              size="sm"
+              className="h-8 w-8 p-0 rounded-full shrink-0"
+              onClick={handleSend}
+              disabled={chatLoading || !message.trim()}
+            >
+              {chatLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
