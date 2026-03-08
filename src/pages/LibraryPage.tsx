@@ -336,6 +336,31 @@ const LibraryPage = () => {
             ))}
           </div>
         )}
+
+        {/* Detail view */}
+        {selectedItem && (
+          <LibraryItemDetail
+            item={selectedItem}
+            open={!!selectedItem}
+            onOpenChange={(open) => { if (!open) setSelectedItem(null); }}
+            userId={user!.id}
+            projectName={selectedItem.project_id ? projectMap.get(selectedItem.project_id) || null : null}
+            onReEdit={() => { handleReEdit(selectedItem); setSelectedItem(null); }}
+            onCopyParams={() => handleCopyParams(selectedItem)}
+            onUpscale={() => handleUpscale(selectedItem)}
+            isUpscaling={upscaling.has(selectedItem.id)}
+            onToggleFavorite={() => handleToggleFavorite(selectedItem)}
+            onDelete={() => { handleDelete(selectedItem); setSelectedItem(null); }}
+            onDownload={() => {
+              const url = selectedItem.type === "image" ? selectedItem.output_image_url : selectedItem.video_url;
+              if (url) downloadFile(url, `${selectedItem.type}-${selectedItem.id.slice(0,8)}.${selectedItem.type === "video" ? 'mp4' : 'png'}`);
+            }}
+            onSaveToDrive={() => {
+              const url = selectedItem.type === "image" ? selectedItem.output_image_url : selectedItem.video_url;
+              if (url) saveToDrive(url, user!.id);
+            }}
+          />
+        )}
       </div>
     </AppShell>
   );
