@@ -425,7 +425,8 @@ const CreatePage = () => {
 
           {/* Prompt History (show for image/video modes) */}
           {(mode === "image" || mode === "video") && (
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-3">
+              <QuickPromptPanel onInsert={(text) => setPrompt((prev) => prev ? `${prev} ${text}` : text)} />
               <PromptHistoryDropdown
                 history={history}
                 onSelect={handleHistorySelect}
