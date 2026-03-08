@@ -196,7 +196,7 @@ Deno.serve(async (req) => {
           size: "1280*720",
           seed: -1,
           enable_prompt_expansion: true,
-          enable_interleave: false,
+          enable_interleave: true,
         }),
       });
       const genResult = await genRes.json();
