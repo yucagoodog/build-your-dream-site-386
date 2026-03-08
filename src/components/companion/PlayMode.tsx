@@ -75,7 +75,13 @@ export function PlayMode({ companion, rooms, assets, roomVariants, interactions,
   const [message, setMessage] = useState("");
   const [showChat, setShowChat] = useState(false);
   const [showActions, setShowActions] = useState(true);
+  const [tapped, setTapped] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const handleCharTap = useCallback(() => {
+    setTapped(true);
+    setTimeout(() => setTapped(false), 500);
+  }, []);
 
   const bgUrl = resolveBackground();
   const charUrl = resolveAsset();
