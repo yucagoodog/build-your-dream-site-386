@@ -20,6 +20,7 @@ import { downloadFile } from "@/lib/download";
 import { saveToDrive } from "@/lib/save-to-drive";
 import { formatDistanceToNow } from "date-fns";
 import { LazyImage } from "@/components/ImageSkeleton";
+import { LibraryItemDetail } from "@/components/LibraryItemDetail";
 
 export type LibraryItem = {
   id: string;
@@ -62,6 +63,7 @@ const LibraryPage = () => {
   const [sortBy, setSortBy] = useState<string>("newest");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<LibraryItem | null>(null);
 
   const { data: imageEdits = [], isLoading: loadingImages } = useQuery({
     queryKey: ["library_image_edits", user?.id],
