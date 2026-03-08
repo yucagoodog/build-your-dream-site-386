@@ -34,11 +34,13 @@ interface Props {
   resolveAsset: (emotion?: string, outfit?: string) => string | null;
   resolveBackground: (room?: string, time?: string) => string | null;
   chatLoading: boolean;
+  onSwitchToStudio?: () => void;
 }
 
 export function PlayMode({
   companion, rooms, assets, roomVariants, interactions,
-  sendMessage, performAction, moveToRoom, resolveAsset, resolveBackground, chatLoading
+  sendMessage, performAction, moveToRoom, resolveAsset, resolveBackground, chatLoading,
+  onSwitchToStudio
 }: Props) {
   const [message, setMessage] = useState("");
   const [showChat, setShowChat] = useState(false);
