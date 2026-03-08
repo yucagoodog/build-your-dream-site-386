@@ -185,21 +185,33 @@ Deno.serve(async (req) => {
         "interior photography, wide angle, detailed environment, no people, photorealistic",
       ].filter(Boolean).join(", ");
 
-      const genRes = await fetch("https://api.atlascloud.ai/api/v1/model/generateImage", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({
-          model: "alibaba/wan-2.6/image-edit",
-          images: [],
-          prompt,
-          negative_prompt: "people, person, blurry, distorted",
-          size: "1280*720",
-          seed: -1,
-          enable_prompt_expansion: true,
-          enable_interleave: true,
-        }),
-      });
-      const genResult = await genRes.json();
+      const requestImage = async (model: string, size: string) => {
+        const res = await fetch("https://api.atlascloud.ai/api/v1/model/generateImage", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify({
+            model,
+            prompt,
+            negative_prompt: "people, person, blurry, distorted",
+            size,
+            seed: -1,
+            enable_prompt_expansion: true,
+          }),
+        });
+        const json = await res.json();
+        return { res, json };
+      };
+
+      // Room generation is text-to-image (no source images)
+      let { res: genRes, json: genResult } = await requestImage("alibaba/wan-2.6/text-to-image", "1280*720");
+
+      // Fallback model for broader account compatibility
+      if (!genRes.ok) {
+        const fallback = await requestImage("alibaba/wan-2.5/text-to-image", "1024*1024");
+        genRes = fallback.res;
+        genResult = fallback.json;
+      }
+
       if (!genRes.ok) return err(genResult?.message || "Generation failed", genRes.status);
 
       const atlasTaskId = genResult?.data?.id;
