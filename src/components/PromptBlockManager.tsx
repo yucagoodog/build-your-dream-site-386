@@ -28,26 +28,19 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-const ALL_CATEGORY_LABELS: Record<string, string> = {
-  // Image categories
-  img_realism: "Realism Levels", img_identity: "Identity Preserve", img_face_swap: "Face/Body Swap",
-  img_negative: "Image Negatives",
-  // Video categories
-  vid_realism: "Realism Levels", vid_motion: "Motion Realism", vid_identity: "Identity Reinforcement",
-  vid_negative: "Video Negatives",
-  // Legacy/custom
+const CATEGORY_LABELS: Record<string, string> = {
+  realism: "Realism Levels",
+  identity: "Identity Preserve",
+  face_swap: "Face/Body Swap",
+  motion: "Motion Realism",
+  negative: "Negatives",
   template: "Templates",
 };
 
 /** Convert a snake_case slug to Title Case for display */
 function formatCategoryLabel(slug: string): string {
-  if (ALL_CATEGORY_LABELS[slug]) return ALL_CATEGORY_LABELS[slug];
+  if (CATEGORY_LABELS[slug]) return CATEGORY_LABELS[slug];
   return slug.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-/** Check if a category belongs to a known pipeline prefix */
-function isKnownPipelineCategory(cat: string): boolean {
-  return cat.startsWith("img_") || cat.startsWith("vid_") || cat === "template";
 }
 
 interface LocalBlockPref { hidden: boolean; custom_sort_order: number | null; }
@@ -76,7 +69,6 @@ function SortableBlockRow({ block, isHidden, toggleHidden, onDelete, onEdit }: {
     setEditing(false);
   };
 
-  // Format value with line breaks at sentence boundaries for display
   const formatValue = (val: string) => {
     return val.replace(/\.\s+/g, ".\n").replace(/,\s*(?=[A-Z])/g, ",\n");
   };
@@ -202,7 +194,6 @@ function SortableCategoryRow({
         isCatHidden && "opacity-40",
         isDragging && "shadow-lg ring-2 ring-primary/30"
       )}>
-      {/* Category header */}
       <div className="flex items-center gap-1 px-1 min-h-[52px]">
         <button {...attributes} {...listeners}
           className="h-12 w-8 flex items-center justify-center cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none shrink-0">
@@ -217,9 +208,7 @@ function SortableCategoryRow({
                 : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               }
               <span className="text-sm font-medium">{formatCategoryLabel(category)}</span>
-              <div className="flex items-center gap-1">
-                <Badge variant="secondary" className="text-[10px] h-5 px-1.5">{visibleCount}/{catBlocks.length}</Badge>
-              </div>
+              <Badge variant="secondary" className="text-[10px] h-5 px-1.5">{visibleCount}/{catBlocks.length}</Badge>
             </CollapsibleTrigger>
             <button onClick={() => toggleCatHidden(category)}
               className={cn(
@@ -239,34 +228,28 @@ function SortableCategoryRow({
 }
 
 /* ── Custom Prompt Creator Form ── */
-function CustomPromptForm({ userId, pipeline, onCreated, onClose, allBlocks }: { userId: string; pipeline: "image" | "video"; onCreated: () => void; onClose: () => void; allBlocks: any[] }) {
+function CustomPromptForm({ userId, onCreated, onClose, allBlocks }: { userId: string; onCreated: () => void; onClose: () => void; allBlocks: any[] }) {
   const [label, setLabel] = useState("");
   const [value, setValue] = useState("");
   const [category, setCategory] = useState("");
   const [customCategory, setCustomCategory] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const imgCategories = ["img_realism", "img_identity", "img_face_swap", "img_negative"];
-  const vidCategories = ["vid_realism", "vid_motion", "vid_identity", "vid_negative", "template"];
-  const baseCategories = pipeline === "image" ? imgCategories : vidCategories;
-  // Also include existing custom categories that belong to this pipeline
-  const pipelinePrefix = pipeline === "image" ? "img_" : "vid_";
+  const baseCategories = ["realism", "identity", "face_swap", "motion", "negative", "template"];
   const existingCustomCategories = [...new Set(
-    allBlocks.filter((b: any) => !b.is_builtin && !isKnownPipelineCategory(b.category) && b.category.startsWith(pipelinePrefix)).map((b: any) => b.category as string)
+    allBlocks.filter((b: any) => !b.is_builtin && !baseCategories.includes(b.category)).map((b: any) => b.category as string)
   )];
   const categories = [...baseCategories, ...existingCustomCategories.filter((c) => !baseCategories.includes(c))];
 
-  // Auto-prefix custom category slugs with pipeline prefix so they stay in the right tab
-  const rawSlug = customCategory.trim().toLowerCase().replace(/\s+/g, "_");
   const resolvedCategory = category === "__custom__"
-    ? (rawSlug.startsWith("img_") || rawSlug.startsWith("vid_") ? rawSlug : `${pipelinePrefix}${rawSlug}`)
+    ? customCategory.trim().toLowerCase().replace(/\s+/g, "_")
     : category;
 
   const handleCreate = async () => {
     if (!label.trim() || !value.trim() || !resolvedCategory) return;
     setSaving(true);
     if (category === "__custom__" && customCategory.trim()) {
-      ALL_CATEGORY_LABELS[resolvedCategory] = customCategory.trim();
+      CATEGORY_LABELS[resolvedCategory] = customCategory.trim();
     }
     const { error } = await supabase.from("prompt_blocks").insert({
       label: label.trim(), value: value.trim(), category: resolvedCategory,
@@ -311,7 +294,7 @@ function CustomPromptForm({ userId, pipeline, onCreated, onClose, allBlocks }: {
 }
 
 /* ── Custom Prompt Creator (Drawer on mobile, Dialog on desktop) ── */
-function CustomPromptCreator({ userId, pipeline, onCreated, allBlocks }: { userId: string; pipeline: "image" | "video"; onCreated: () => void; allBlocks: any[] }) {
+function CustomPromptCreator({ userId, onCreated, allBlocks }: { userId: string; onCreated: () => void; allBlocks: any[] }) {
   const [open, setOpen] = useState(false);
   const isMobile = useIsMobile();
 
@@ -330,7 +313,7 @@ function CustomPromptCreator({ userId, pipeline, onCreated, allBlocks }: { userI
             <DrawerHeader className="px-0">
               <DrawerTitle className="text-sm">New Custom Prompt</DrawerTitle>
             </DrawerHeader>
-            <CustomPromptForm userId={userId} pipeline={pipeline} onCreated={onCreated} onClose={() => setOpen(false)} allBlocks={allBlocks} />
+            <CustomPromptForm userId={userId} onCreated={onCreated} onClose={() => setOpen(false)} allBlocks={allBlocks} />
           </DrawerContent>
         </Drawer>
       </>
@@ -343,7 +326,7 @@ function CustomPromptCreator({ userId, pipeline, onCreated, allBlocks }: { userI
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle className="text-sm">New Custom Prompt</DialogTitle></DialogHeader>
-          <CustomPromptForm userId={userId} pipeline={pipeline} onCreated={onCreated} onClose={() => setOpen(false)} allBlocks={allBlocks} />
+          <CustomPromptForm userId={userId} onCreated={onCreated} onClose={() => setOpen(false)} allBlocks={allBlocks} />
         </DialogContent>
       </Dialog>
     </>
@@ -355,7 +338,6 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
-  const [pipeline, setPipeline] = useState<"image" | "video">("image");
   const [localBlockPrefs, setLocalBlockPrefs] = useState<Record<string, LocalBlockPref>>({});
   const [localCatPrefs, setLocalCatPrefs] = useState<Record<string, LocalCatPref>>({});
   const [dirty, setDirty] = useState(false);
@@ -412,13 +394,8 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
     }
   }, [catPrefs]);
 
-  // Filter blocks by pipeline: img_* → image tab, everything else → video tab
-  const filteredBlocks = blocks.filter((b: any) => {
-    if (pipeline === "image") return b.category.startsWith("img_");
-    return !b.category.startsWith("img_"); // vid_*, template, and legacy non-prefixed → video tab
-  });
-
-  const allCategories = [...new Set(filteredBlocks.map((b: any) => b.category))];
+  // All blocks unified — no pipeline filter
+  const allCategories = [...new Set(blocks.map((b: any) => b.category))];
   const sortedCategories = [...allCategories].sort((a, b) => {
     const aOrder = localCatPrefs[a]?.custom_sort_order ?? allCategories.indexOf(a);
     const bOrder = localCatPrefs[b]?.custom_sort_order ?? allCategories.indexOf(b);
@@ -426,7 +403,7 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
   });
 
   const blocksByCategory: Record<string, any[]> = {};
-  filteredBlocks.forEach((block: any) => {
+  blocks.forEach((block: any) => {
     if (!blocksByCategory[block.category]) blocksByCategory[block.category] = [];
     blocksByCategory[block.category].push(block);
   });
@@ -484,15 +461,15 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
     setDirty(true);
   };
 
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: ["all_prompt_blocks"] });
+    queryClient.invalidateQueries({ queryKey: ["prompt_blocks"] });
+  };
+
   const handleDeleteBlock = async (blockId: string) => {
     const { error } = await supabase.from("prompt_blocks").delete().eq("id", blockId).eq("user_id", user!.id);
     if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); }
-    else {
-      queryClient.invalidateQueries({ queryKey: ["all_prompt_blocks"] });
-      queryClient.invalidateQueries({ queryKey: ["img_prompt_blocks"] });
-      queryClient.invalidateQueries({ queryKey: ["vid_prompt_blocks"] });
-      toast({ title: "Prompt deleted" });
-    }
+    else { invalidateAll(); toast({ title: "Prompt deleted" }); }
   };
 
   const handleEditBlock = async (blockId: string, label: string, value: string) => {
@@ -500,39 +477,23 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
     if (!block || !user) return;
 
     if (block.is_builtin) {
-      // Builtin blocks can't be updated via RLS — create a custom copy and hide the original
       const { error } = await supabase.from("prompt_blocks").insert({
         label, value, category: block.category,
         user_id: user.id, is_builtin: false, sort_order: block.sort_order,
       });
       if (error) { toast({ title: "Save failed", description: error.message, variant: "destructive" }); return; }
-      // Hide the original builtin block
       setLocalBlockPrefs((prev) => ({
         ...prev,
         [blockId]: { hidden: true, custom_sort_order: prev[blockId]?.custom_sort_order ?? null },
       }));
       setDirty(true);
-      queryClient.invalidateQueries({ queryKey: ["all_prompt_blocks"] });
-      queryClient.invalidateQueries({ queryKey: ["img_prompt_blocks"] });
-      queryClient.invalidateQueries({ queryKey: ["vid_prompt_blocks"] });
+      invalidateAll();
       toast({ title: "Custom copy created (original hidden)" });
     } else {
-      // Custom block — update directly
       const { error } = await supabase.from("prompt_blocks").update({ label, value } as any).eq("id", blockId).eq("user_id", user.id);
       if (error) { toast({ title: "Update failed", description: error.message, variant: "destructive" }); }
-      else {
-        queryClient.invalidateQueries({ queryKey: ["all_prompt_blocks"] });
-        queryClient.invalidateQueries({ queryKey: ["img_prompt_blocks"] });
-        queryClient.invalidateQueries({ queryKey: ["vid_prompt_blocks"] });
-        toast({ title: "Prompt updated" });
-      }
+      else { invalidateAll(); toast({ title: "Prompt updated" }); }
     }
-  };
-
-  const handlePromptCreated = () => {
-    queryClient.invalidateQueries({ queryKey: ["all_prompt_blocks"] });
-    queryClient.invalidateQueries({ queryKey: ["img_prompt_blocks"] });
-    queryClient.invalidateQueries({ queryKey: ["vid_prompt_blocks"] });
   };
 
   const handleSave = useCallback(async () => {
@@ -555,8 +516,7 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
       }
       queryClient.invalidateQueries({ queryKey: ["user_prompt_block_prefs"] });
       queryClient.invalidateQueries({ queryKey: ["user_prompt_category_prefs"] });
-      queryClient.invalidateQueries({ queryKey: ["img_prompt_blocks"] });
-      queryClient.invalidateQueries({ queryKey: ["prompt_blocks"] });
+      invalidateAll();
       toast({ title: "Prompt preferences saved" });
       setDirty(false);
     } catch (err: any) {
@@ -587,20 +547,10 @@ export function PromptBlockManager({ onBack }: { onBack: () => void }) {
         </Button>
       </div>
 
-      {/* Pipeline toggle + Add Custom */}
-      <div className="flex items-center gap-2">
-        <div className="flex rounded-xl bg-surface-1 p-1 gap-1 flex-1">
-          {(["image", "video"] as const).map((p) => (
-            <button key={p} onClick={() => setPipeline(p)}
-              className={cn(
-                "flex-1 rounded-lg py-2.5 text-xs font-medium transition-colors capitalize min-h-[40px]",
-                pipeline === p ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground active:opacity-70"
-              )}>
-              {p}
-            </button>
-          ))}
-        </div>
-        {user && <CustomPromptCreator userId={user.id} pipeline={pipeline} onCreated={handlePromptCreated} allBlocks={blocks} />}
+      {/* Add Custom (no pipeline toggle anymore) */}
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">All prompt blocks — reorder, hide, or add custom.</p>
+        {user && <CustomPromptCreator userId={user.id} onCreated={invalidateAll} allBlocks={blocks} />}
       </div>
 
       {/* Category list */}
