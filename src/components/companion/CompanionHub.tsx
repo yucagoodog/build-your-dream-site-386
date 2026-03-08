@@ -62,8 +62,20 @@ export function CompanionHub() {
   const hasVisuals = approvedEmotions > 0 || hook.assets.some((a: any) => a.image_url);
   const hasRoomBg = approvedRooms > 0 || draftRooms > 0;
 
+  // In play mode, render fullscreen without header
+  if (mode === "play") {
+    return (
+      <div className="flex flex-col" style={{ height: "100dvh" }}>
+        <PlayMode
+          {...hook}
+          onSwitchToStudio={() => setMode("studio")}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col" style={{ height: mode === "play" ? "calc(100vh - 3.5rem - env(safe-area-inset-bottom, 0px))" : "auto" }}>
+    <div className="flex flex-col" style={{ height: "auto" }}>
       {/* Header with mode toggle */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border/50 shrink-0">
         <div className="flex items-center gap-2 flex-1 min-w-0">
