@@ -50,6 +50,7 @@ const AppRoutes = () => (
     <Route path="/flows/:flowId/run/:execId" element={<ProtectedRoute><FlowExecutionPage /></ProtectedRoute>} />
     <Route path="/runner" element={<ProtectedRoute><FlowRunnerPage /></ProtectedRoute>} />
     <Route path="/executions" element={<ProtectedRoute><ExecutionsPage /></ProtectedRoute>} />
+    <Route path="/pet" element={<ProtectedRoute><PetPage /></ProtectedRoute>} />
     <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
     <Route path="*" element={<NotFound />} />
   </Routes>
