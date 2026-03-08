@@ -3,7 +3,7 @@ import { CompanionHub } from "@/components/companion/CompanionHub";
 
 const PetPage = () => {
   return (
-    <AppShell title="Companion">
+    <AppShell title="Companion" hideNav>
       <CompanionHub />
     </AppShell>
   );
