@@ -27,6 +27,7 @@ import { extractInvokeError } from "@/lib/invoke-error";
 import { usePromptHistory } from "@/hooks/use-prompt-history";
 import { PromptHistoryDropdown } from "@/components/PromptHistoryDropdown";
 import { GenerationProgress } from "@/components/GenerationProgress";
+import { QuickPromptPanel } from "@/components/QuickPromptPanel";
 import {
   ImageSourceSlots, SeedImageUpload,
   ImagePromptSection, ImageParamsSection,
