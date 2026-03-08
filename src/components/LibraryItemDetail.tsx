@@ -76,14 +76,14 @@ export function LibraryItemDetail({
           {item.type}
         </Badge>
         <Badge variant="outline" className={cn("text-[10px]",
-          item.status === "completed" ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/10" :
+          item.status === "completed" ? "border-[hsl(var(--status-completed))]/30 text-[hsl(var(--status-completed))] bg-[hsl(var(--status-completed))]/10" :
           item.status === "failed" ? "border-destructive/30 text-destructive bg-destructive/10" :
           "border-border"
         )}>
           {item.status}
         </Badge>
         {item.is_final && (
-          <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400 bg-amber-500/10">Approved</Badge>
+          <Badge variant="outline" className="text-[10px] border-[hsl(var(--status-warning))]/30 text-[hsl(var(--status-warning))] bg-[hsl(var(--status-warning))]/10">Approved</Badge>
         )}
         <button onClick={onToggleFavorite}
           className={cn("ml-auto h-8 w-8 rounded-full flex items-center justify-center transition-colors",

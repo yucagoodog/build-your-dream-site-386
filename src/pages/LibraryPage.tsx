@@ -21,7 +21,7 @@ import { saveToDrive } from "@/lib/save-to-drive";
 import { formatDistanceToNow } from "date-fns";
 import { LazyImage } from "@/components/ImageSkeleton";
 
-type LibraryItem = {
+export type LibraryItem = {
   id: string;
   type: "image" | "video";
   prompt: string | null;
