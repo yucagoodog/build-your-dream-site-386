@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Heart, Send, Loader2, MessageCircle, ChevronDown,
-  Phone, Smile, Shirt, MapPin, X
+  Phone, Smile, Shirt, MapPin, X, Palette
 } from "lucide-react";
 import { getCurrentTimeOfDay } from "@/hooks/use-companion";
 
@@ -34,11 +34,13 @@ interface Props {
   resolveAsset: (emotion?: string, outfit?: string) => string | null;
   resolveBackground: (room?: string, time?: string) => string | null;
   chatLoading: boolean;
+  onSwitchToStudio?: () => void;
 }
 
 export function PlayMode({
   companion, rooms, assets, roomVariants, interactions,
-  sendMessage, performAction, moveToRoom, resolveAsset, resolveBackground, chatLoading
+  sendMessage, performAction, moveToRoom, resolveAsset, resolveBackground, chatLoading,
+  onSwitchToStudio
 }: Props) {
   const [message, setMessage] = useState("");
   const [showChat, setShowChat] = useState(false);
@@ -172,6 +174,15 @@ export function PlayMode({
 
         {/* ─── Top HUD — FaceTime style ─── */}
         <div className="absolute top-3 inset-x-0 z-20 flex flex-col items-center">
+          {/* Studio button */}
+          {onSwitchToStudio && (
+            <button
+              onClick={onSwitchToStudio}
+              className="absolute top-0 left-3 flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/10 backdrop-blur-sm text-white/70 hover:bg-white/20 text-[10px] font-medium transition-all"
+            >
+              <Palette className="h-3 w-3" /> Studio
+            </button>
+          )}
           <p className="text-white/60 text-[10px] tracking-widest uppercase font-medium">
             {rooms.find((r: any) => r.room_type === currentRoom)?.icon || "🏠"}{" "}
             {currentRoom.replace(/_/g, " ")} · {timeOfDay}
