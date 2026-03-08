@@ -14,6 +14,7 @@ import FlowBuilderPage from "./pages/FlowBuilderPage";
 import FlowExecutionPage from "./pages/FlowExecutionPage";
 import FlowRunnerPage from "./pages/FlowRunnerPage";
 import ExecutionsPage from "./pages/ExecutionsPage";
+import PetPage from "./pages/PetPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();

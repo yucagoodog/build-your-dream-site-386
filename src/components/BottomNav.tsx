@@ -1,4 +1,4 @@
-import { Sparkles, Library, Settings, Workflow, Play, Activity } from "lucide-react";
+import { Sparkles, Library, Settings, Workflow, Play, Activity, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocation, useNavigate } from "react-router-dom";
 
