@@ -507,7 +507,7 @@ function ListCard({ item, userId, onClick, projectName, onCopyParams, onReEdit, 
             <div className="flex items-start justify-between gap-2">
               <div className="flex flex-wrap items-center gap-1.5">
                 <Badge variant="outline" className={cn("text-[10px] border", statusColors[item.status] || statusColors.queued)}>{item.status}</Badge>
-                {item.is_final && <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400 bg-amber-500/10">Approved</Badge>}
+                {item.is_final && <Badge variant="outline" className="text-[10px] border-[hsl(var(--status-warning))]/30 text-[hsl(var(--status-warning))] bg-[hsl(var(--status-warning))]/10">Approved</Badge>}
               </div>
               <div className="flex items-center gap-1.5">
                 <button onClick={onToggleFavorite}
