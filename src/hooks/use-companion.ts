@@ -228,7 +228,25 @@ export function useCompanion() {
   const updateAssetStatus = useCallback(async (assetId: string, status: "approved" | "rejected") => {
     await supabase.from("companion_assets" as any).update({ status } as any).eq("id", assetId);
     qc.invalidateQueries({ queryKey: ["companion_assets"] });
-  }, [qc]);
+
+    // Auto-remove background for approved character assets (emotion/outfit/portrait)
+    if (status === "approved") {
+      const asset = assets.find((a: any) => a.id === assetId);
+      if (asset && ["emotion", "outfit", "portrait"].includes(asset.asset_type) && asset.image_url) {
+        toast({ title: "✨ Removing background..." });
+        supabase.functions.invoke("remove-bg", {
+          body: { image_url: asset.image_url, asset_id: assetId },
+        }).then(({ data, error }) => {
+          if (error || data?.error) {
+            toast({ title: "Background removal failed", description: data?.error || error?.message, variant: "destructive" });
+          } else {
+            toast({ title: "✅ Background removed!" });
+            qc.invalidateQueries({ queryKey: ["companion_assets"] });
+          }
+        });
+      }
+    }
+  }, [qc, assets]);
 
   const updateVariantStatus = useCallback(async (variantId: string, status: "approved" | "rejected") => {
     await supabase.from("companion_room_variants" as any).update({ status } as any).eq("id", variantId);
