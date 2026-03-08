@@ -367,15 +367,15 @@ const LibraryPage = () => {
 };
 
 /* ─── Grid Card (visual, compact) ─── */
-function GridCard({ item, userId, onCopyParams, onReEdit, onUpscale, isUpscaling, onToggleFavorite, onDelete }: {
-  item: LibraryItem; userId: string; onCopyParams: () => void; onReEdit: () => void;
+function GridCard({ item, userId, onClick, onCopyParams, onReEdit, onUpscale, isUpscaling, onToggleFavorite, onDelete }: {
+  item: LibraryItem; userId: string; onClick: () => void; onCopyParams: () => void; onReEdit: () => void;
   onUpscale: () => void; isUpscaling: boolean; onToggleFavorite: () => void; onDelete: () => void;
 }) {
   const outputUrl = item.type === "image" ? item.output_image_url : item.video_url;
   const isVideo = item.type === "video";
 
   return (
-    <div className="group relative rounded-lg overflow-hidden bg-muted aspect-square">
+    <div className="group relative rounded-lg overflow-hidden bg-muted aspect-square cursor-pointer" onClick={onClick}>
       {/* Preview */}
       {item.status === "completed" && outputUrl ? (
         isVideo ? (
@@ -464,8 +464,8 @@ function GridCard({ item, userId, onCopyParams, onReEdit, onUpscale, isUpscaling
 }
 
 /* ─── List Card (detailed) ─── */
-function ListCard({ item, userId, projectName, onCopyParams, onReEdit, onUpscale, isUpscaling, onToggleFavorite, onDelete }: {
-  item: LibraryItem; userId: string; projectName: string | null;
+function ListCard({ item, userId, onClick, projectName, onCopyParams, onReEdit, onUpscale, isUpscaling, onToggleFavorite, onDelete }: {
+  item: LibraryItem; userId: string; onClick: () => void; projectName: string | null;
   onCopyParams: () => void; onReEdit: () => void; onUpscale: () => void;
   isUpscaling: boolean; onToggleFavorite: () => void; onDelete: () => void;
 }) {
