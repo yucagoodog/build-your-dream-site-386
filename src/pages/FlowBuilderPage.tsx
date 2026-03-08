@@ -21,6 +21,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { downloadFile } from "@/lib/download";
+import { extractInvokeError } from "@/lib/invoke-error";
 import {
   ImageSourceSlots, SeedImageUpload,
   ImagePromptSection, ImageParamsSection,
@@ -417,7 +418,8 @@ const FlowBuilderPage = () => {
             model: config.model || "alibaba/wan-2.6/image-edit",
           },
         });
-        if (error || data?.error) throw new Error(data?.error || error?.message);
+        const errMsg1 = await extractInvokeError(error, data);
+        if (errMsg1) throw new Error(errMsg1);
         if (!data?.edit?.id) throw new Error("No edit ID returned");
         resultUrl = await pollForResult("generate-image", { action: "poll", edit_id: data.edit.id }, "output_image_url");
 
@@ -431,7 +433,8 @@ const FlowBuilderPage = () => {
             generate_audio: config.generate_audio ?? false,
           },
         });
-        if (error || data?.error) throw new Error(data?.error || error?.message);
+        const errMsg2 = await extractInvokeError(error, data);
+        if (errMsg2) throw new Error(errMsg2);
         if (!data?.generation?.id) throw new Error("No generation ID returned");
         resultUrl = await pollForResult("generate-video", { action: "poll", generation_id: data.generation.id }, "video_url");
 
@@ -445,7 +448,8 @@ const FlowBuilderPage = () => {
             output_format: config.output_format || "png", resolution: config.resolution || "1k",
           },
         });
-        if (error || data?.error) throw new Error(data?.error || error?.message || "Upscale failed");
+        const errMsg3 = await extractInvokeError(error, data);
+        if (errMsg3) throw new Error(errMsg3);
         if (!data?.edit?.id) throw new Error("No edit ID returned");
         resultUrl = await pollForResult("upscale-image", { action: "poll", edit_id: data.edit.id }, "output_image_url");
 
@@ -459,7 +463,8 @@ const FlowBuilderPage = () => {
             position_x: config.position_x ?? 0, position_y: config.position_y ?? 0,
           },
         });
-        if (error || data?.error) throw new Error(data?.error || error?.message || "Overlay failed");
+        const errMsg4 = await extractInvokeError(error, data);
+        if (errMsg4) throw new Error(errMsg4);
         resultUrl = data?.result_url;
       }
 
