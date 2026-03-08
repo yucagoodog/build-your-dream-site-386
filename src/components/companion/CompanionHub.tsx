@@ -63,7 +63,7 @@ export function CompanionHub() {
   const hasRoomBg = approvedRooms > 0 || draftRooms > 0;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col" style={{ height: mode === "play" ? "calc(100vh - 3.5rem)" : "auto" }}>
       {/* Header with mode toggle */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border/50 shrink-0">
         <div className="flex items-center gap-2 flex-1 min-w-0">
