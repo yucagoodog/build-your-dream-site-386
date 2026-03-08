@@ -475,7 +475,7 @@ function ListCard({ item, userId, onClick, projectName, onCopyParams, onReEdit, 
   const outputUrl = isVideo ? item.video_url : item.output_image_url;
 
   return (
-    <Card className="border-border/50 overflow-hidden">
+    <Card className="border-border/50 overflow-hidden cursor-pointer hover:border-primary/30 transition-colors" onClick={onClick}>
       <CardContent className="p-0">
         <div className="flex flex-col lg:flex-row">
           {/* Preview */}
