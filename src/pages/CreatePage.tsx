@@ -27,6 +27,7 @@ import { extractInvokeError } from "@/lib/invoke-error";
 import { usePromptHistory } from "@/hooks/use-prompt-history";
 import { PromptHistoryDropdown } from "@/components/PromptHistoryDropdown";
 import { GenerationProgress } from "@/components/GenerationProgress";
+import { QuickPromptPanel } from "@/components/QuickPromptPanel";
 import {
   ImageSourceSlots, SeedImageUpload,
   ImagePromptSection, ImageParamsSection,
@@ -164,31 +165,17 @@ const CreatePage = () => {
     window.history.replaceState({}, document.title);
   }, [location.state]);
 
-  // Prompt blocks
-  const { data: imgBlocks = [] } = useQuery({
-    queryKey: ["img_prompt_blocks"],
+  // Prompt blocks — unified (no pipeline split)
+  const { data: allBlocks = [] } = useQuery({
+    queryKey: ["all_prompt_blocks"],
     queryFn: async () => {
-      const { data } = await supabase.from("prompt_blocks").select("*").like("category", "img_%").order("sort_order");
-      return data || [];
-    },
-  });
-
-  const { data: vidBlocks = [] } = useQuery({
-    queryKey: ["vid_prompt_blocks"],
-    queryFn: async () => {
-      const { data } = await supabase.from("prompt_blocks").select("*").not("category", "like", "img_%").order("sort_order");
+      const { data } = await supabase.from("prompt_blocks").select("*").order("sort_order");
       return data || [];
     },
     enabled: !!user,
   });
 
-  const imgBlocksByCategory = imgBlocks.reduce((acc: Record<string, any[]>, b: any) => {
-    if (!acc[b.category]) acc[b.category] = [];
-    acc[b.category].push(b);
-    return acc;
-  }, {});
-
-  const vidBlocksByCategory = vidBlocks.reduce((acc: Record<string, any[]>, b: any) => {
+  const blocksByCategory = allBlocks.reduce((acc: Record<string, any[]>, b: any) => {
     if (!acc[b.category]) acc[b.category] = [];
     acc[b.category].push(b);
     return acc;
@@ -438,7 +425,8 @@ const CreatePage = () => {
 
           {/* Prompt History (show for image/video modes) */}
           {(mode === "image" || mode === "video") && (
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-3">
+              <QuickPromptPanel onInsert={(text) => setPrompt((prev) => prev ? `${prev} ${text}` : text)} />
               <PromptHistoryDropdown
                 history={history}
                 onSelect={handleHistorySelect}
@@ -456,7 +444,7 @@ const CreatePage = () => {
               <ImagePromptSection
                 prompt={prompt} setPrompt={setPrompt}
                 negativePrompt={negativePrompt} setNegativePrompt={setNegativePrompt}
-                blocksByCategory={imgBlocksByCategory}
+                blocksByCategory={blocksByCategory}
               />
               <Separator />
               {/* Advanced Settings - Progressive Disclosure */}
@@ -488,7 +476,7 @@ const CreatePage = () => {
               <VideoPromptSection
                 prompt={prompt} setPrompt={setPrompt}
                 negativePrompt={negativePrompt} setNegativePrompt={setNegativePrompt}
-                blocksByCategory={vidBlocksByCategory}
+                blocksByCategory={blocksByCategory}
                 duration={duration}
               />
               <Separator />

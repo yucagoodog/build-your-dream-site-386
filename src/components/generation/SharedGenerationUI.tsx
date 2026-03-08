@@ -172,10 +172,10 @@ export function ImagePromptSection({ prompt, setPrompt, negativePrompt, setNegat
   const [faceSwapOp, setFaceSwapOp] = useState<string>("none");
   const [identityMode, setIdentityMode] = useState<string>("auto");
 
-  const realismBlocks = blocksByCategory["img_realism"] || [];
-  const faceSwapBlocks = blocksByCategory["img_face_swap"] || [];
-  const identityBlocks = blocksByCategory["img_identity"] || [];
-  const negativeBlocks = blocksByCategory["img_negative"] || [];
+  const realismBlocks = blocksByCategory["realism"] || [];
+  const faceSwapBlocks = blocksByCategory["face_swap"] || [];
+  const identityBlocks = blocksByCategory["identity"] || [];
+  const negativeBlocks = blocksByCategory["negative"] || [];
 
   const applyRealism = useCallback((level: string) => {
     setRealismLevel(level);
@@ -343,10 +343,10 @@ export function VideoPromptSection({ prompt, setPrompt, negativePrompt, setNegat
   const [motionRealism, setMotionRealism] = useState(true);
   const [identityMode, setIdentityMode] = useState<string>("auto");
 
-  const realismBlocks = blocksByCategory["vid_realism"] || [];
-  const motionBlock = (blocksByCategory["vid_motion"] || [])[0];
-  const identityBlocks = blocksByCategory["vid_identity"] || [];
-  const negativeBlocks = blocksByCategory["vid_negative"] || [];
+  const realismBlocks = blocksByCategory["realism"] || [];
+  const motionBlock = (blocksByCategory["motion"] || [])[0];
+  const identityBlocks = blocksByCategory["identity"] || [];
+  const negativeBlocks = blocksByCategory["negative"] || [];
 
   const applyRealism = useCallback((level: string) => {
     setRealismLevel(level);
