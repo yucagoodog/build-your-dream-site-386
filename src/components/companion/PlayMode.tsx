@@ -111,9 +111,12 @@ export function PlayMode({
                       key={i}
                       className="absolute text-sm opacity-0"
                       style={{
-                        left: `${25 + Math.random() * 50}%`,
-                        bottom: `${40 + Math.random() * 30}%`,
-                        animation: `companion-particle ${3 + Math.random() * 2}s ease-out infinite`,
+                        left: `${25 + i * 20}%`,
+                        bottom: `${40 + i * 10}%`,
+                        animationName: 'companion-particle',
+                        animationDuration: `${3 + i * 0.5}s`,
+                        animationTimingFunction: 'ease-out',
+                        animationIterationCount: 'infinite',
                         animationDelay: `${i * 1.2}s`,
                       }}
                     >
