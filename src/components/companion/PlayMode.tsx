@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Heart, Send, Loader2, MessageCircle, ChevronUp, ChevronDown } from "lucide-react";
 import { getCurrentTimeOfDay } from "@/hooks/use-companion";
@@ -133,17 +133,52 @@ export function PlayMode({ companion, rooms, assets, roomVariants, interactions,
           <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-transparent to-black/10" />
         </div>
 
-        {/* Character portrait — centered hero */}
+        {/* Character portrait — centered hero with idle animations */}
         <div className="absolute inset-0 flex items-end justify-center pointer-events-none">
           {displayChar ? (
-            <img
-              src={displayChar}
-              alt={companion?.name}
-              className="h-[75%] max-h-[550px] w-auto object-contain drop-shadow-[0_10px_40px_rgba(0,0,0,0.6)] transition-all duration-500 animate-fade-in"
-              style={{ filter: "drop-shadow(0 0 60px rgba(var(--primary-rgb, 139 92 246), 0.15))" }}
-            />
+            <div
+              className="relative h-[75%] max-h-[550px] w-auto animate-fade-in cursor-pointer pointer-events-auto"
+              onClick={handleCharTap}
+              style={{
+                animation: `companion-float 4s ease-in-out infinite, companion-breathe 3.5s ease-in-out infinite${tapped ? ", companion-tap-bounce 0.4s ease-out" : ""}`,
+              }}
+            >
+              <img
+                src={displayChar}
+                alt={companion?.name}
+                className="h-full w-auto object-contain drop-shadow-[0_10px_40px_rgba(0,0,0,0.6)] transition-all duration-500"
+                style={{ filter: "drop-shadow(0 0 60px rgba(var(--primary-rgb, 139 92 246), 0.15))" }}
+              />
+              {/* Mood particles */}
+              {moodLevel >= 70 && (
+                <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                  {[...Array(5)].map((_, i) => (
+                    <span
+                      key={i}
+                      className="absolute text-sm opacity-0"
+                      style={{
+                        left: `${20 + Math.random() * 60}%`,
+                        bottom: `${30 + Math.random() * 40}%`,
+                        animation: `companion-particle ${3 + Math.random() * 2}s ease-out infinite`,
+                        animationDelay: `${i * 0.8}s`,
+                      }}
+                    >
+                      {moodLevel >= 80 ? "💕" : "✨"}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {/* Tap reaction emoji */}
+              {tapped && (
+                <span
+                  className="absolute top-1/4 left-1/2 -translate-x-1/2 text-2xl pointer-events-none"
+                  style={{ animation: "companion-tap-emoji 0.6s ease-out forwards" }}
+                >
+                  💖
+                </span>
+              )}
+            </div>
           ) : (
-            /* Placeholder silhouette when no image at all */
             <div className="h-[60%] aspect-[3/4] rounded-t-full bg-gradient-to-t from-muted/30 to-muted/10 border border-white/5 flex items-center justify-center mb-0">
               <span className="text-6xl opacity-30">👤</span>
             </div>
