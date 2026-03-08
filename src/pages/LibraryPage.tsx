@@ -20,8 +20,9 @@ import { downloadFile } from "@/lib/download";
 import { saveToDrive } from "@/lib/save-to-drive";
 import { formatDistanceToNow } from "date-fns";
 import { LazyImage } from "@/components/ImageSkeleton";
+import { LibraryItemDetail } from "@/components/LibraryItemDetail";
 
-type LibraryItem = {
+export type LibraryItem = {
   id: string;
   type: "image" | "video";
   prompt: string | null;
@@ -62,6 +63,7 @@ const LibraryPage = () => {
   const [sortBy, setSortBy] = useState<string>("newest");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<LibraryItem | null>(null);
 
   const { data: imageEdits = [], isLoading: loadingImages } = useQuery({
     queryKey: ["library_image_edits", user?.id],
@@ -310,6 +312,7 @@ const LibraryPage = () => {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
             {sorted.map((item) => (
               <GridCard key={item.id} item={item} userId={user!.id}
+                onClick={() => setSelectedItem(item)}
                 onCopyParams={() => handleCopyParams(item)}
                 onReEdit={() => handleReEdit(item)}
                 onUpscale={() => handleUpscale(item)}
@@ -322,6 +325,7 @@ const LibraryPage = () => {
           <div className="space-y-3">
             {sorted.map((item) => (
               <ListCard key={item.id} item={item} userId={user!.id}
+                onClick={() => setSelectedItem(item)}
                 projectName={item.project_id ? projectMap.get(item.project_id) || null : null}
                 onCopyParams={() => handleCopyParams(item)}
                 onReEdit={() => handleReEdit(item)}
@@ -332,21 +336,46 @@ const LibraryPage = () => {
             ))}
           </div>
         )}
+
+        {/* Detail view */}
+        {selectedItem && (
+          <LibraryItemDetail
+            item={selectedItem}
+            open={!!selectedItem}
+            onOpenChange={(open) => { if (!open) setSelectedItem(null); }}
+            userId={user!.id}
+            projectName={selectedItem.project_id ? projectMap.get(selectedItem.project_id) || null : null}
+            onReEdit={() => { handleReEdit(selectedItem); setSelectedItem(null); }}
+            onCopyParams={() => handleCopyParams(selectedItem)}
+            onUpscale={() => handleUpscale(selectedItem)}
+            isUpscaling={upscaling.has(selectedItem.id)}
+            onToggleFavorite={() => handleToggleFavorite(selectedItem)}
+            onDelete={() => { handleDelete(selectedItem); setSelectedItem(null); }}
+            onDownload={() => {
+              const url = selectedItem.type === "image" ? selectedItem.output_image_url : selectedItem.video_url;
+              if (url) downloadFile(url, `${selectedItem.type}-${selectedItem.id.slice(0,8)}.${selectedItem.type === "video" ? 'mp4' : 'png'}`);
+            }}
+            onSaveToDrive={() => {
+              const url = selectedItem.type === "image" ? selectedItem.output_image_url : selectedItem.video_url;
+              if (url) saveToDrive(url, user!.id);
+            }}
+          />
+        )}
       </div>
     </AppShell>
   );
 };
 
 /* ─── Grid Card (visual, compact) ─── */
-function GridCard({ item, userId, onCopyParams, onReEdit, onUpscale, isUpscaling, onToggleFavorite, onDelete }: {
-  item: LibraryItem; userId: string; onCopyParams: () => void; onReEdit: () => void;
+function GridCard({ item, userId, onClick, onCopyParams, onReEdit, onUpscale, isUpscaling, onToggleFavorite, onDelete }: {
+  item: LibraryItem; userId: string; onClick: () => void; onCopyParams: () => void; onReEdit: () => void;
   onUpscale: () => void; isUpscaling: boolean; onToggleFavorite: () => void; onDelete: () => void;
 }) {
   const outputUrl = item.type === "image" ? item.output_image_url : item.video_url;
   const isVideo = item.type === "video";
 
   return (
-    <div className="group relative rounded-lg overflow-hidden bg-muted aspect-square">
+    <div className="group relative rounded-lg overflow-hidden bg-muted aspect-square cursor-pointer" onClick={onClick}>
       {/* Preview */}
       {item.status === "completed" && outputUrl ? (
         isVideo ? (
@@ -435,8 +464,8 @@ function GridCard({ item, userId, onCopyParams, onReEdit, onUpscale, isUpscaling
 }
 
 /* ─── List Card (detailed) ─── */
-function ListCard({ item, userId, projectName, onCopyParams, onReEdit, onUpscale, isUpscaling, onToggleFavorite, onDelete }: {
-  item: LibraryItem; userId: string; projectName: string | null;
+function ListCard({ item, userId, onClick, projectName, onCopyParams, onReEdit, onUpscale, isUpscaling, onToggleFavorite, onDelete }: {
+  item: LibraryItem; userId: string; onClick: () => void; projectName: string | null;
   onCopyParams: () => void; onReEdit: () => void; onUpscale: () => void;
   isUpscaling: boolean; onToggleFavorite: () => void; onDelete: () => void;
 }) {
@@ -446,7 +475,7 @@ function ListCard({ item, userId, projectName, onCopyParams, onReEdit, onUpscale
   const outputUrl = isVideo ? item.video_url : item.output_image_url;
 
   return (
-    <Card className="border-border/50 overflow-hidden">
+    <Card className="border-border/50 overflow-hidden cursor-pointer hover:border-primary/30 transition-colors" onClick={onClick}>
       <CardContent className="p-0">
         <div className="flex flex-col lg:flex-row">
           {/* Preview */}
@@ -478,7 +507,7 @@ function ListCard({ item, userId, projectName, onCopyParams, onReEdit, onUpscale
             <div className="flex items-start justify-between gap-2">
               <div className="flex flex-wrap items-center gap-1.5">
                 <Badge variant="outline" className={cn("text-[10px] border", statusColors[item.status] || statusColors.queued)}>{item.status}</Badge>
-                {item.is_final && <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400 bg-amber-500/10">Approved</Badge>}
+                {item.is_final && <Badge variant="outline" className="text-[10px] border-[hsl(var(--status-warning))]/30 text-[hsl(var(--status-warning))] bg-[hsl(var(--status-warning))]/10">Approved</Badge>}
               </div>
               <div className="flex items-center gap-1.5">
                 <button onClick={onToggleFavorite}
