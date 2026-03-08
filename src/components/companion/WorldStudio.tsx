@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Plus, Trash2, Sparkles, Check, X, ChevronDown, ChevronUp, Pencil, Zap } from "lucide-react";
+import { Loader2, Plus, Trash2, Sparkles, Check, X, ChevronDown, ChevronUp, Pencil, Zap, RefreshCw } from "lucide-react";
 import { TIMES, TIME_MODIFIERS, ROOM_PROMPTS, buildRoomPrompt } from "@/lib/companion-prompts";
 
 const TIME_EMOJI: Record<string, string> = { morning: "🌅", afternoon: "☀️", evening: "🌇", night: "🌙" };
@@ -49,15 +49,13 @@ export function WorldStudio({ rooms, roomVariants, generateRoomVariant, updateVa
 
   const getVariantStatus = (roomId: string, time: string) => {
     const variants = getVariantsForRoom(roomId).filter(v => v.time_of_day === time);
-    const approved = variants.find(v => v.status === "approved");
-    if (approved) return { status: "approved", variant: approved };
-    if (variants.length > 0) return { status: "draft", variant: variants[0] };
-    return { status: "none", variant: null };
-  };
-
-  const handleGenerate = (roomId: string, time: string, room: any) => {
-    // If user edited the prompt, we could pass it through — for now use base
-    generateRoomVariant(roomId, time);
+    const approved = variants.find(v => v.status === "approved" && v.image_url);
+    if (approved) return { status: "approved" as const, variant: approved };
+    const withImage = variants.find(v => v.image_url);
+    if (withImage) return { status: "draft" as const, variant: withImage };
+    // Has variant records but no image = stuck/failed
+    if (variants.length > 0) return { status: "stuck" as const, variant: variants[0] };
+    return { status: "none" as const, variant: null };
   };
 
   const togglePromptEdit = (key: string, basePrompt: string, time: string) => {
@@ -82,7 +80,6 @@ export function WorldStudio({ rooms, roomVariants, generateRoomVariant, updateVa
       {showAddRoom && (
         <Card>
           <CardContent className="p-3 space-y-2">
-            {/* Quick-add suggestions */}
             <Label className="text-[10px] text-muted-foreground">Quick Add</Label>
             <div className="flex flex-wrap gap-1.5">
               {ROOM_SUGGESTIONS.filter(s => !rooms.find((r: any) => r.room_type === s.type)).map(s => (
@@ -128,7 +125,8 @@ export function WorldStudio({ rooms, roomVariants, generateRoomVariant, updateVa
       {rooms.map((room: any) => {
         const isExpanded = expandedRoom === room.id;
         const variants = getVariantsForRoom(room.id);
-        const approvedCount = variants.filter(v => v.status === "approved").length;
+        const approvedCount = variants.filter(v => v.status === "approved" && v.image_url).length;
+        const withImageCount = variants.filter(v => v.image_url).length;
 
         return (
           <Card key={room.id}>
@@ -141,7 +139,7 @@ export function WorldStudio({ rooms, roomVariants, generateRoomVariant, updateVa
                 <div className="flex-1 text-left">
                   <p className="text-sm font-medium">{room.room_name}</p>
                   <p className="text-[10px] text-muted-foreground">
-                    {approvedCount}/{TIMES.length} time variants approved
+                    {approvedCount} approved · {withImageCount} generated / {TIMES.length} times
                   </p>
                 </div>
                 {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
@@ -155,6 +153,9 @@ export function WorldStudio({ rooms, roomVariants, generateRoomVariant, updateVa
                     {TIMES.map(time => {
                       const { status, variant } = getVariantStatus(room.id, time);
                       const promptKey = `${room.id}-${time}`;
+                      const canGenerate = status === "none" || status === "stuck";
+                      const canRegenerate = status === "draft";
+
                       return (
                         <div key={time} className="space-y-1">
                           <div className="flex items-center gap-1">
@@ -163,32 +164,47 @@ export function WorldStudio({ rooms, roomVariants, generateRoomVariant, updateVa
                             {status === "approved" && <Check className="h-3 w-3 text-green-400" />}
                           </div>
 
-                          {variant?.image_url ? (
+                          {status === "approved" && variant?.image_url ? (
                             <div className="relative group aspect-video rounded-md overflow-hidden bg-muted">
                               <img src={variant.image_url} alt="" className="w-full h-full object-cover" />
-                              {variant.status === "draft" && (
-                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
-                                  <button
-                                    onClick={() => updateVariantStatus(variant.id, "approved")}
-                                    className="h-7 w-7 rounded-full bg-green-500 hover:bg-green-400 flex items-center justify-center"
-                                  >
-                                    <Check className="h-3.5 w-3.5 text-white" />
-                                  </button>
-                                  <button
-                                    onClick={() => updateVariantStatus(variant.id, "rejected")}
-                                    className="h-7 w-7 rounded-full bg-red-500 hover:bg-red-400 flex items-center justify-center"
-                                  >
-                                    <X className="h-3.5 w-3.5 text-white" />
-                                  </button>
+                              <div className="absolute top-1 right-1">
+                                <div className="h-4 w-4 rounded-full bg-green-500 flex items-center justify-center">
+                                  <Check className="h-2.5 w-2.5 text-white" />
                                 </div>
-                              )}
+                              </div>
                             </div>
-                          ) : variant ? (
-                            <div className="aspect-video rounded-md bg-muted flex items-center justify-center">
-                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          ) : status === "draft" && variant?.image_url ? (
+                            <div className="relative group aspect-video rounded-md overflow-hidden bg-muted">
+                              <img src={variant.image_url} alt="" className="w-full h-full object-cover" />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
+                                <button
+                                  onClick={() => updateVariantStatus(variant.id, "approved")}
+                                  className="h-7 w-7 rounded-full bg-green-500 hover:bg-green-400 flex items-center justify-center"
+                                >
+                                  <Check className="h-3.5 w-3.5 text-white" />
+                                </button>
+                                <button
+                                  onClick={() => updateVariantStatus(variant.id, "rejected")}
+                                  className="h-7 w-7 rounded-full bg-red-500 hover:bg-red-400 flex items-center justify-center"
+                                >
+                                  <X className="h-3.5 w-3.5 text-white" />
+                                </button>
+                              </div>
+                              {/* Regenerate option under draft */}
+                              <button
+                                onClick={() => generateRoomVariant(room.id, time)}
+                                disabled={generating}
+                                className="absolute bottom-1 right-1 h-5 w-5 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Regenerate"
+                              >
+                                <RefreshCw className="h-2.5 w-2.5 text-white" />
+                              </button>
                             </div>
                           ) : (
                             <div className="space-y-1">
+                              {status === "stuck" && (
+                                <p className="text-[9px] text-yellow-400">⚠ Previous generation had no result</p>
+                              )}
                               <button
                                 onClick={() => togglePromptEdit(promptKey, room.base_prompt, time)}
                                 className="w-full flex items-center gap-1 text-[9px] text-muted-foreground hover:text-foreground transition-colors"
@@ -208,10 +224,10 @@ export function WorldStudio({ rooms, roomVariants, generateRoomVariant, updateVa
                                 variant="outline"
                                 className="w-full h-auto aspect-video text-xs gap-1 border-dashed"
                                 disabled={generating}
-                                onClick={() => handleGenerate(room.id, time, room)}
+                                onClick={() => generateRoomVariant(room.id, time)}
                               >
                                 {generating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                                Generate
+                                {status === "stuck" ? "Retry" : "Generate"}
                               </Button>
                             </div>
                           )}

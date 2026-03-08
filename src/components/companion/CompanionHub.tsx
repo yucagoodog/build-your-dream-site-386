@@ -7,11 +7,17 @@ import { CharacterStudio } from "./CharacterStudio";
 import { WorldStudio } from "./WorldStudio";
 import { ScenarioStudio } from "./ScenarioStudio";
 import { PlayMode } from "./PlayMode";
-import { Palette, Home, Film, Play, Loader2, Heart } from "lucide-react";
+import { Palette, Home, Film, Play, Loader2, Heart, Wand2, Check } from "lucide-react";
+import { DEFAULT_SCENARIOS } from "@/lib/companion-prompts";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/hooks/use-toast";
 
 export function CompanionHub() {
   const hook = useCompanion();
+  const { user } = useAuth();
   const [mode, setMode] = useState<"studio" | "play">("studio");
+  const [seeding, setSeeding] = useState(false);
 
   if (hook.companionLoading) {
     return (
@@ -24,6 +30,37 @@ export function CompanionHub() {
   if (!hook.companion) {
     return <CompanionSetup onCreate={hook.createCompanion} />;
   }
+
+  // Check if scenarios are missing (companion created before scenario seeding was added)
+  const needsScenarios = hook.scenarios.length === 0;
+
+  const seedScenarios = async () => {
+    if (!user || !hook.companion) return;
+    setSeeding(true);
+    try {
+      await supabase.from("companion_scenarios" as any).insert(
+        DEFAULT_SCENARIOS.map(s => ({
+          ...s,
+          companion_id: hook.companion.id,
+          user_id: user.id,
+        })) as any
+      );
+      toast({ title: "✨ 8 scenarios added!" });
+      // Refresh
+      window.location.reload();
+    } catch {
+      toast({ title: "Failed to seed scenarios", variant: "destructive" });
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  // Count readiness
+  const approvedEmotions = hook.assets.filter((a: any) => a.asset_type === "emotion" && a.status === "approved" && a.image_url).length;
+  const approvedRooms = hook.roomVariants.filter((v: any) => v.status === "approved" && v.image_url).length;
+  const draftRooms = hook.roomVariants.filter((v: any) => v.image_url).length;
+  const hasVisuals = approvedEmotions > 0 || hook.assets.some((a: any) => a.image_url);
+  const hasRoomBg = approvedRooms > 0 || draftRooms > 0;
 
   return (
     <div className="flex flex-col h-full">
@@ -71,6 +108,44 @@ export function CompanionHub() {
       {/* Content */}
       {mode === "studio" ? (
         <div className="flex-1 overflow-auto">
+          {/* Readiness banner */}
+          {(!hasVisuals || !hasRoomBg || needsScenarios) && (
+            <div className="mx-3 mt-3 p-3 rounded-lg bg-primary/10 border border-primary/20 space-y-2">
+              <p className="text-xs font-medium text-primary">🚀 Get started checklist:</p>
+              <ul className="text-[11px] space-y-1 text-muted-foreground">
+                <li className="flex items-center gap-1.5">
+                  {hasVisuals ? <Check className="h-3 w-3 text-green-400" /> : <span className="text-yellow-400">○</span>}
+                  Generate at least 1 emotion/outfit in Character tab
+                </li>
+                <li className="flex items-center gap-1.5">
+                  {hasRoomBg ? <Check className="h-3 w-3 text-green-400" /> : <span className="text-yellow-400">○</span>}
+                  Generate at least 1 room background in World tab
+                </li>
+                <li className="flex items-center gap-1.5">
+                  {!needsScenarios ? <Check className="h-3 w-3 text-green-400" /> : <span className="text-yellow-400">○</span>}
+                  Add scenarios ({hook.scenarios.length} added)
+                  {needsScenarios && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-5 text-[10px] px-2 ml-1 gap-1"
+                      disabled={seeding}
+                      onClick={seedScenarios}
+                    >
+                      {seeding ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Wand2 className="h-2.5 w-2.5" />}
+                      Add 8 defaults
+                    </Button>
+                  )}
+                </li>
+              </ul>
+              {hasVisuals && hasRoomBg && (
+                <Button size="sm" className="w-full text-xs gap-1" onClick={() => setMode("play")}>
+                  <Play className="h-3 w-3" /> Ready to Play!
+                </Button>
+              )}
+            </div>
+          )}
+
           <Tabs defaultValue="character" className="w-full">
             <TabsList className="w-full grid grid-cols-3 mx-0 rounded-none border-b border-border/30">
               <TabsTrigger value="character" className="text-xs gap-1 rounded-none data-[state=active]:border-b-2 data-[state=active]:border-primary">
