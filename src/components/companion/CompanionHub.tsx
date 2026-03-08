@@ -16,7 +16,7 @@ import { toast } from "@/hooks/use-toast";
 export function CompanionHub() {
   const hook = useCompanion();
   const { user } = useAuth();
-  const [mode, setMode] = useState<"studio" | "play">("studio");
+  const [mode, setMode] = useState<"studio" | "play">("play");
   const [seeding, setSeeding] = useState(false);
 
   if (hook.companionLoading) {
